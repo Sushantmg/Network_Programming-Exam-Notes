@@ -207,6 +207,21 @@ Signals are **async notifications** the kernel/program can send (SIGINT, SIGIO, 
 ### Q19 🟢★ UNIX domain sockets & socketpair. (asked: short note)
 `AF_UNIX`/`AF_LOCAL` sockets for **same-host IPC** — faster than TCP. Stream/datagram/seqpacket forms. Used by X Window; **pass file descriptors** between processes via `sendmsg/recvmsg`. `socketpair()` creates two connected local sockets at once (full-duplex pipe for stream).
 
+### Q19b 🟡 Hostname & service name resolution (gethostbyname / getservbyname / getaddrinfo).
+Computers need **IP addresses**, but humans use **names**. Resolution converts between them:
+- **`gethostbyname(name)`** → `struct hostent *` for a hostname: official name, aliases, address family, addr length, and `h_addr_list[]` (the IP addresses, network byte order). It reads **DNS**.
+- **`gethostbyaddr(addr, len, type)`** → the reverse: IP → official hostname (PTR lookup).
+- **`getservbyname(name, proto)`** → `struct servent *` giving the **port** for a well-known service from the `services` database, e.g. `getservbyname("http","tcp")` → port 80.
+- **`getservbyport(port, proto)`** → reverse: port → service name.
+- **Modern alternative `getaddrinfo()`** — one function does name → *address structures* for both IPv4/IPv6 (returns a linked list of `addrinfo`), and is preferred for new code because it's family-neutral and thread-safe.
+
+```c
+struct hostent *hp = gethostbyname("www.example.com");
+/* hp->h_addr_list[0] is the first IP in network byte order */
+```
+
+> **Limit:** `gethostbyname` blocks (sync DNS) and only does IPv4; it is **not thread-safe** (returns pointer to static data). Use `getaddrinfo` for production code.
+
 ---
 
 ## Unit 3 — Advanced Unix
@@ -469,6 +484,15 @@ Full-duplex, persistent, single-TCP messaging protocol; HTTP Upgrade handshake �
 ## Full 6-Part 8-Mark Model Answers (maximum-depth, exam-ready)
 
 > These are complete model answers for the **highest-weight 8-mark questions**, each following the structure **①Definition → ②Diagram → ③Full concept → ④Example/code → ⑤Common errors/limits → ⑥Conclusion**. Practise writing these under exam conditions. (Answers to every other question are in the sections above.)
+
+> **How to turn any model answer into a full-mark 8-mark answer (exam technique):**
+> - **① Definition (≈1 mark):** open with *the* one-line definition in bold. Name the category it belongs to (protocol / function / model).
+> - **② Diagram (≈2 marks):** every 8-mark answer MUST have a hand-drawn diagram — handshake, state machine, layered stack, call order, or comparison table. Label every arrow/box.
+> - **③ Full concept (≈3 marks):** this is the body — expand with *why* and *how*, define the terms you use (every acronym: MSL, AM, ISN…), and give the rules/tables verbatim.
+> - **④ Example/code (≈1 mark):** write a short real C snippet or a worked example (a port number, a specific protocol mapping). A code block scores even if small.
+> - **⑤ Common errors/limits (≈1 mark):** this is what separates full marks from near-full marks — mention a real gotcha, a deprecated feature, or a limitation.
+> - **⑥ Conclusion (≈0.5–1 mark):** 1–2 sentences: when to use it + what problems it solves. Don't repeat ①.
+> - **Scaling rule:** for a genuine full 8-mark answer, write each section 1–2 sentences longer than shown here, and always draw the biggest, clearest diagram you can — diagrams are the cheapest marks.
 
 ---
 
@@ -857,9 +881,9 @@ loop { read frame (opcode → handle text/close/ping);
 
 ---
 
-### M14. TLS/SSL  [🟡 short note OR 8 marks if asked broad]
+### M14. TLS/SSL  [🔴 8-mark, in addition to the 🟡 short-note]
 
-**① Definition** — **TLS** (successor of SSL) is a security protocol layered between the **application** and **TCP** that provides **confidentiality, authenticity, and integrity** for the data.
+**① Definition** — **TLS** (Transport Layer Security, successor of SSL) is a security protocol layered between the **application** and **TCP** that provides the three security goals — **confidentiality** (encryption), **authenticity** (server/client identity) and **integrity** (tamper detection) — for all data in transit. Plain sockets send data **in the clear**; TLS wraps that data so only ciphertext reaches the network.
 
 **② Diagram**
 ```
@@ -868,38 +892,99 @@ loop { read frame (opcode → handle text/close/ping);
       TLS layer                  ← encrypt + authenticate + integrity
         ▼
         TCP → network            ← ciphertext only
-(HTTPS = HTTP over TLS; WSS = WebSocket over TLS)
+(HTTPS = HTTP over TLS; WSS = WebSocket over TLS; FTPS = FTP over TLS)
+
+Handshake (simplified):
+ CLIENT                                   SERVER
+  │ ClientHello(version, ciphers, rand)        │
+  │ ───────────────────────────────────────▶    │
+  │ ServerHello(chosen cipher, rand);          │
+  │ Certificate; (KeyExchange/ServerKeyExch)   │
+  │ ◀───────────────────────────────────────    │
+  │ [verify cert via CA]                       │
+  │ derive same session key                   │
+  │ ── (both now send traffic with this key) ──│
 ```
 
-**③ Full concept** — Three building blocks: **encryption** (symmetric AES fast; asymmetric RSA/DH to exchange keys), **hashing** (SHA-256 one-way digests for integrity/tamper detection), **certificates** (bind a public key to an identity, signed by a trusted **CA**). The handshake negotiates cipher suites, authenticates the server (and optionally client), and establishes **session keys** (with DH giving **forward secrecy**).
+**③ Full concept** — Three building blocks:
+1. **Encryption** — **symmetric** (same key both ways, e.g. **AES**) is fast and used for bulk data; **asymmetric/public-key** (e.g. **RSA**) is slow but used to safely establish the symmetric **session key**; ephemeral **Diffie-Hellman** keys give **forward secrecy** (even if the private key leaks later, past traffic stays secret).
+2. **Hashing** — **one-way** functions (**SHA-256**) produce a fixed-size digest used with an **HMAC** to verify **integrity** (detect tampering / bit flips).
+3. **Certificates** — bind a **public key to an identity**; a certificate is **digitally signed by a Certificate Authority (CA)**. The client checks the signature and name against its **trusted-CA store** → this authenticates the server and safely delivers its public key.
 
-**④ Example** — OpenSSL API: `SSL_CTX_new`, `SSL_new`, `SSL_connect`/`SSL_accept`, `SSL_read`/`SSL_write`. Browsers show https:// only when this succeeds.
+**The TLS 1.2 handshake (detail):**
+1. Client **ClientHello** — TLS version + list of **cipher suites** + client random.
+2. Server **ServerHello** — chosen suite + server random; then sends its **certificate** and key-exchange material.
+3. Client **verifies** the certificate (CA signature, hostname, validity period) — this authenticates the server.
+4. Both sides independently **derive the same session key** (from RSA/DH key exchange + both randoms).
+5. A brief **Finished** exchange double-checks agreement; from then on every record is encrypted + MAC'd.
+- **TLS 1.3** streamlines this (1 round trip, no RSA key transport, only forward-secret key exchange).
 
-**⑤ Common errors/limits** — certificate expiry/name mismatch cause warnings; `SSL_read`/`SSL_write` may return `SSL_ERROR_WANT_READ/SSL_ERROR_WANT_WRITE` on non-blocking sockets (must retry, not treat as error); old SSL/TLS 1.0–1.1 are deprecated.
+**④ Example/code** — OpenSSL on a socket:
+```c
+SSL_CTX *ctx = SSL_CTX_new(TLS_server_method());     /* or client_method */
+SSL_CTX_use_certificate_file(ctx, "cert.pem", SSL_FILETYPE_PEM);
+SSL_CTX_use_PrivateKey_file(ctx, "key.pem",  SSL_FILETYPE_PEM);
+SSL *ssl = SSL_new(ctx);
+SSL_set_fd(ssl, sockfd);          /* attach to an existing connected socket */
+SSL_accept(ssl);                  /* server handshake */
+SSL_write(ssl, "hello", 5);       /* encrypted I/O instead of write()/read() */
+SSL_read(ssl, buf, sizeof(buf));
+```
 
-**⑥ Conclusion** — TLS is the standard way to make sockets secure (confidentiality + authentication + integrity); a network programmer applies it via a library such as OpenSSL.
+**⑤ Common errors/limits** — certificate **expired / name mismatch / not a trusted CA** → handshake fails or browser warns; on **non-blocking** sockets `SSL_read`/`SSL_write` return `SSL_ERROR_WANT_READ`/`SSL_ERROR_WANT_WRITE` (retry later — *not* a hard error); **SSL/TLS 1.0/1.1 are deprecated/unwanted** on modern servers; no certificate ⇒ **no authentication** (attackers can MITM); RSA key-transport gives **no forward secrecy**.
+
+**⑥ Conclusion** — TLS is the standard answer to "how do I make my sockets secure": it combines symmetric+asymmetric encryption, hashing and CA-signed certificates to give confidentiality, authenticity and integrity. As a network programmer you don't reinvent it — you attach a library like OpenSSL to your socket and swap `read`/`write` for `SSL_read`/`SSL_write`.
 
 ---
 
-### M15. gRPC  [🟡 short note]
+### M15. gRPC  [🔴 8-mark, in addition to the 🟡 short-note]
 
-**① Definition** — **gRPC** is Google's high-performance, open-source **RPC framework** letting a client call a server function over the network as if it were local.
+**① Definition** — **gRPC** (Google Remote Procedure Call) is a high-performance, open-source **RPC framework** letting a client program call a **method on a server** over the network **as if it were a local function call**. It is built on **HTTP/2** and serialises data with **Protocol Buffers (protobuf)**.
 
 **② Diagram**
 ```
- Client stub (generated)                 Server stub (generated)
-   ── Call SayHello(name) ─────────────────────────────▶  actual service
-   ◀── HelloReply(message) ─────────────────────────────
-        (all RPC carried over HTTP/2, payload = protobuf binary)
+ .proto file (interface contract)
+      │  protoc (compiler)
+      ▼
+  ┌──────────┐                 ┌──────────┐
+  │ Client   │   HTTP/2        │ Server   │
+  │ stub     │◀──────────────▶ │ stub     │
+  └──────────┘  (binary        └──────────┘
+   call f()      protobuf)       dispatch to
+                                actual service
+
+  The 4 call models:
+  Unary:  req ─▶ │ ─▶ resp   (1:1)
+  Server stream: req ─▶ │ ─▶ resp, resp, resp…   (1:N)
+  Client stream: req,req… ─▶ │ ─▶ resp            (N:1)
+  Bidi stream:   req,req… ◀─▶ │ ◀─▶ resp,resp…    (N:N)
 ```
 
-**③ Full concept** — Built on **HTTP/2** (multiplexing, header compression, streaming); uses **Protocol Buffers (protobuf)** binary serialisation defined in `.proto` files that generate code in **many languages** (C++, Java, Go, Python, Node). Call models: **unary, server-streaming, client-streaming, bidirectional-streaming**. Strongly typed and efficient, so it suits high-throughput microservices and streaming.
+**③ Full concept** — You first write an **interface contract** in a `.proto` file (messages + service). The **protoc** compiler generates **stub code in many languages** (C++, Java, Go, Python, C#, Node). The **HTTP/2** base gives **multiplexing** (many calls share one connection), header compression, and true **bidirectional streaming**. **Protobuf** gives compact, fast, **strongly typed** binary messages (far smaller than JSON/XML). Because stubs are generated for both sides, calling `stub.SayHello(...)` sends the RPC and delivers the reply as a typed value. gRPC also supports **deadlines/timeouts, cancellation, authentication (TLS/mTLS), load balancing, and interceptors**.
 
-**④ Example** — define `service Greeter { rpc SayHello(HelloRequest) returns (HelloReply); }` in `.proto`, compile, and the generated stub lets the client call it (with options for streaming, deadlines, cancellation).
+**④ Example/code** — `greeter.proto`:
+```proto
+syntax = "proto3";
+service Greeter {                       // the interface contract
+  rpc SayHello (HelloRequest) returns (HelloReply);
+  rpc Chat    (stream ChatMsg) returns (stream ChatMsg);   // bidi streaming
+}
+message HelloRequest { string name = 1; }
+message HelloReply   { string message = 1; }
+```
+```bash
+protoc --cpp_out=. greeter.proto    # → greeter.grpc.pb.cc/h (stubs)
+```
+```c++ // client, produced code
+Greeter::Stub stub(channel);            // channel = gRPC connection to "host:port"
+HelloReply reply;
+grpc::ClientContext ctx;
+stub.SayHello(&ctx, req, &reply);       // looks like a normal function call
+```
 
-**⑤ Limits** — not human-readable like REST/JSON (hard to debug), requires the protobuf toolchain, mostly over HTTP/2.
+**⑤ Common errors/limits** — payloads are **binary, not human-readable ⇒ harder to debug** (needs grpcurl/Wireshark); the protobuf **toolchain must be installed** and versions kept matched across languages; relies on **HTTP/2** (proxies that don't support HTTP/2 break it); heavier than a hand-written TCP protocol for trivial cases; debugging/curl tooling is less mature than for REST.
 
-**⑥ Conclusion** — gRPC is the modern choice for microservices that need efficient, streaming, multi-language, strongly-typed RPC.
+**⑥ Conclusion** — gRPC is the modern default for **microservices, mobile↔backend and streaming** workloads that need performance, strong typing and multi-language support — it replaces hand-written JSON/REST with a fast, contract-driven, streaming RPC system over HTTP/2.
 
 ### M16. WebSockets short note (6-part micro answer / also see M12)
 **① Definition** — WebSocket is a **full-duplex, persistent** messaging protocol over a single TCP connection, giving the server the ability to **push** to clients.
