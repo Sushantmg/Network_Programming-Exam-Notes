@@ -156,6 +156,27 @@ A **simple/iterative server** handles **one client at a time** — if that clien
 
 ### Option A — `fork()` per client (most classic)
 ```
+FORK-PER-CLIENT CONCURRENT SERVER
+        ┌──────────────────────────────────────────────┐
+        │   PARENT (main loop)                          │
+        │   listenfd = socket(); bind(); listen();      │
+        │   for(;;){                                    │
+        │      connfd = accept(...)                     │
+        │      fork()  ─────────────┐                   │
+        │   }                       │                   │
+        └───────────────────────────┼───────────────────┘
+                                    │
+                    ┌───────────────┴───────────────┐
+                    ▼                               ▼
+              ┌────────────┐                 ┌────────────┐
+              │  CHILD 1   │                 │  CHILD 2   │
+              │ close(listenfd)              │ close(listenfd)
+              │ serve_client(connfd)         │ serve_client(connfd)
+              │ close(connfd); exit(0)       │ ...
+              └────────────┘                 └────────────┘
+               each child handles ONE client in parallel
+```
+```
 SERVER main:
   listenfd = socket(); bind(); listen();
   for (;;) {
@@ -199,8 +220,14 @@ SERVER main:
 - **Multicast**: one sender → a **selected GROUP** of hosts that joined that group.
 
 ```
-UNICAST        BROADCAST          MULTICAST
-[1→1]          [1→ALL on LAN]     [1→ group members]
+UNICAST        BROADCAST (all on LAN)    MULTICAST (only members)
+   S──▶D          S──▶ A,B,C,D,E           S──▶ A, D        (B,C,E not in group)
+   │              S──▶ A                   S──▶ D
+   │              S──▶ B                   (NIC filters; only members process)
+   │              S──▶ C                        A and D got one copy each
+   │              S──▶ D                        → far more efficient than broadcast
+   │              S──▶ E
+   └─ one copy    (EVERY host gets a copy → wastes CPU/LAN)
 ```
 
 ### Broadcast — details
@@ -291,6 +318,24 @@ flags = fcntl(sock, F_GETFL); fcntl(sock, F_SETFL, flags | O_NONBLOCK);  /* nonb
 
 - **Syslog** = the UNIX **centralised logging facility** used by network/system applications.
 - A special daemon (**`syslogd`** / `rsyslog`) collects messages from all programs and writes them to log files (often `/var/log/syslog`, `/var/log/messages`).
+
+```
+ SYSLOG ARCHITECTURE (draw this)
+   ┌───────────────────────────────┐
+   │  Network apps / daemons        │   (ssh, httpd, inetd, ...)
+   │  openlog("sshd", ...)          │
+   │  syslog(LOG_WARNING, "...")    │
+   └───────────────┬───────────────┘
+                   │  message (socket /dev/log, UDP 514)
+                   ▼
+          ┌─────────────────┐        /etc/syslog.conf
+          │   syslogd daemon│──────▶ classifies by facility+level
+          └─────────────────┘
+                   │
+      ┌────────────┼─────────────┐
+      ▼            ▼             ▼
+  /var/log/syslog  ...         remote log host (optional)
+```
 
 ### Functions
 ```c

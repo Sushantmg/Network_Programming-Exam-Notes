@@ -3,7 +3,7 @@
 **Subject:** Network Programming (CMP 380) · **Unit 1** | **Priority: HIGH**
 **Number of teaching hours in syllabus:** 5
 
-> **How to use this note:** this unit is written to give you *complete understanding*, not memorising. Read each section until you can explain it to a friend in your own words and draw the diagrams by hand. If you can do that, an examiner will believe you understand — and give full marks.
+> **How to use this note:** this unit is written to give you *complete understanding*, not memorising. Read each section until you can explain it to a friend in your own words and draw the diagrams by hand. If you can do that, an examiner will believe you understand — and give full marks. **Every topic below has a diagram — draw them on the board, they are the cheapest marks.**
 
 ---
 
@@ -15,13 +15,34 @@ A **computer network** = a group of computers (and other devices) connected toge
 - Each device talks to others using agreed-upon rules called **protocols**.
 - The most important family of protocols is **TCP/IP** (Transmission Control Protocol / Internet Protocol).
 
+```
+                       A SMALL NETWORK
+   ┌────────┐        ┌────────┐        ┌────────┐
+   │  PC 1  │───┐    │ Server │───┐    │  PC 2  │
+   └────────┘   │    └────────┘   │    └────────┘
+                │         │       │
+              ┌─┴─────────┴─┐    ┌┴─────────┐
+              │   Switch    │    │ Printer  │   ← shared resource
+              └─────────────┘    └──────────┘
+                 All devices share the printer & server via the switch
+```
+
 ### Why do we need a network?
 1. **Resource sharing** — many users can use one printer, one disk, one server.
 2. **Communication** — email, chat, video calls, web browsing.
 3. **Centralised management** — data stored on servers, not every PC.
 
 ### What is a protocol?
-A **protocol** is simply **a set of rules** that two communicating parties agree to follow, so that both sides understand each other. Examples: TCP, UDP, SCTP, IP, HTTP, FTP, SMTP.
+A **protocol** is simply **a set of rules** that two communicating parties agree to follow, so that both sides understand each other. Just like two people must speak the same language to talk, two computers must follow the same protocol to exchange data.
+
+```
+  Without protocol (gibberish)          With protocol (agreed rules)
+   Party A: "¡hola que tal?"             Party A: "hi"  ─ the structure,
+   Party B: "Wassup bro!"                Party B: "sup"  sequence & meaning
+   → no shared meaning                   → mutual understanding
+```
+
+Examples of protocols: **TCP, UDP, SCTP, IP, HTTP, FTP, SMTP**.
 
 ---
 
@@ -44,6 +65,7 @@ Almost all network communication follows the **client–server model**:
 │ process  │                            │ process  │
 │ (starts) │  ◀────────── reply ────────  │ (waits)  │
 └──────────┘                            └──────────┘
+    "active"                                "passive"
 ```
 
 **A classic textbook example:** a client sends a **pathname** (a filename) in a request; the server opens that file, and returns the **file's contents** — or an **error** if it cannot open it.
@@ -52,11 +74,18 @@ Servers are typed by how they handle many clients:
 - **Iterative server** — handles one client at a time; when that client finishes, it moves to the next. Simple but slow.
 - **Concurrent server** — forks (creates) another process/thread for each client so many clients are served at once. (More in Unit 3.)
 
+```
+ITERATIVE server (one at a time):        CONCURRENT server (all at once):
+   client1 ──► [handle] ──► client2          client1 ─► child1
+   (waits for 1 to finish)                  client2 ─► child2   ← all run together
+                                            client3 ─► child3        (fork)
+```
+
 ---
 
 ## 1.3 Interprocess Communication (IPC)
 
-**IPC** = Interprocess Communication = the different **ways processes exchange messages**.
+**IPC** = Interprocess Communication = the different **ways processes exchange messages**. Since each process has its own private memory, they need a **shared channel** to talk.
 
 ### Evolution of UNIX IPC (memorise this timeline)
 ```
@@ -73,10 +102,17 @@ Pipes ──▶ Named pipes/FIFOs ──▶ System V msg queues ──▶ POSIX 
 
 ```
 Diagram - three ways:
-process A --file--> [kernel] <--file-- process B          (way 1)
-process A --pipes/queues--> [kernel] <-- process B        (way 2)
-process A <----shared memory region----> process B        (way 3, direct)
+process A --file--> [kernel] <--file-- process B          (way 1: file)
+process A --pipes/queues--> [kernel] <-- process B        (way 2: kernel)
+process A <----shared memory region----> process B        (way 3: direct, fastest)
 ```
+
+**Comparison table (which is fastest?):**
+| Way | Speed | Needs sync? | Kernel involved? |
+|---|---|---|---|
+| 1. File | Slowest (disk I/O) | Yes | Every read/write |
+| 2. Kernel (pipes/queues) | Medium | Yes | Every syscall |
+| 3. Shared memory | **Fastest** (no copy) | **Yes** | Only at setup |
 
 ### Threads vs Processes
 - A **process** has its **own address space**; processes are isolated, heavier to create.
@@ -84,12 +120,32 @@ process A <----shared memory region----> process B        (way 3, direct)
 - For IPC purposes, threads of the same process "share" memory automatically — no kernel message passing needed between them.
 - POSIX.1 threads standard: **1995**.
 
+```
+PROCESSES (separate memory)          THREADS (shared memory)
+ ┌─────────┐      ┌─────────┐        ┌──────────────────────────┐
+ │ mem A   │      │ mem B   │        │   ONE process's memory   │
+ │ proc 1  │      │ proc 2  │        │  ┌──────┬──────┬──────┐  │
+ └─────────┘      └─────────┘        │  │ T1   │ T2   │ T3   │  │ ← all share this
+   must use IPC to talk              │  └──────┴──────┴──────┘  │
+                                     └──────────────────────────┘
+                                        threads share globals
+```
+
 ### Semaphore (Dijkstra, late 1960s)
 A **semaphore** = a counter/integer used to **control access to a shared resource**.
 
 - **Analogy:** a single-track railway crossing. The semaphore allows only **one train (process)** to enter at a time. Others wait until the track is free.
 - Operations: a process **waits** (decrements / blocks if 0) and **signals/post** (increments) when done.
 - Used to protect shared memory and other shared resources from being corrupted by simultaneous access.
+
+```
+ RAILWAY ANALOGY OF A SEMAPHORE (mutual exclusion):
+   ──►[ train/process ]──►════⚠══════ single track ════════
+                                ▲
+                    semaphore = 1 → only one at a time
+   wait():  if count==0, block; else count-- and enter
+   signal(): count++, wake a waiting process
+```
 
 ### POSIX (Portable Operating System Interface)
 - A **family of standards** from IEEE (also ISO/IEC 9945) — *not* one standard.
@@ -139,6 +195,21 @@ The protocols we use in network programming are Transport-layer protocols. Three
 │                    IP (IPv4 / IPv6)                            ← network layer   │
 │                 Link (Ethernet, Wi-Fi)                         ← data link       │
 └──────────────────────────────────────────────────────────────────────────────────┘
+          The transport layer sits between your app and IP
+```
+
+### How data flows down and up (encapsulation)
+```
+ Sender                                                      Receiver
+┌────────────┐  HTTP request        ┌────────────┐
+│ Application│                     │ Application│
+├────────────┤  TCP header + data  ├────────────┤
+│ Transport  │  (segment)          │ Transport  │
+├────────────┤  IP header + seg    ├────────────┤
+│ Network    │  (packet)           │ Network    │  ← each layer reads
+├────────────┤  Eth header + pkt   ├────────────┤     its own header
+│ Link       │  (frame)            │ Link       │
+└────────────┘  ──────wire───────  └────────────┘
 ```
 
 ### TCP — Transmission Control Protocol
@@ -165,6 +236,14 @@ The protocols we use in network programming are Transport-layer protocols. Three
 - **Four-way handshake with a COOKIE** to resist SYN-flood DoS attacks (TCP is vulnerable).
 - **No half-open state** (unlike TCP which allows half-closed connections).
 - Used by: telephony signaling (SIGTRAN), Diameter, etc.
+
+```
+ SCTP multi-homing (fault tolerance):
+   Host A                          Host B
+   IP1 ──────────────── IP1
+   IP2 ──────────────── IP2      if one link fails, the other keeps the call alive
+   (one association, several addresses)
+```
 
 ### TCP vs UDP vs SCTP — comparison table (asked EVERY year)
 | Feature | TCP | UDP | SCTP |
@@ -206,11 +285,22 @@ Explanation:
 
 > Why 3, not 2? Because both sequence numbers must be synchronised **in both directions**. It also lets the server confirm the client can actually receive (connection is bidirectional).
 
+**Draw this as a sequence diagram with the exact seq/ack numbers** — it is worth the most marks in the whole course.
+
 ### Why the initial sequence number (ISN) should NOT start from 0 (HIGH — asked directly)
 - If ISN always started at 0, an **old, delayed segment** from a previous, now-closed connection could arrive with a sequence number that **overlaps** the new connection's data. The receiver would accept it as *valid new data* → data corruption (the "wandering duplicate" / "lost duplicate" problem).
 - Starting from an **unpredictable/random ISN** (RFC 6528 recommends randomising it) makes it very unlikely that a stray old segment's number falls inside the current connection's window.
 - Also, a predictable ISN is a **security risk** (session hijacking).
 - The **TIME_WAIT** state (2× MSL) gives additional protection by letting old duplicates **expire** in the network before the port is reused.
+
+```
+ WHY NOT ISN = 0?  (the wandering duplicate problem)
+   old connection (on same port)  →  is closed
+   a delayed segment still traveling the network  ──► arrives
+   new connection (same port) starts with ISN=0   ◀── matches old segment's number!
+   receiver mistakes the old segment for NEW data  →  corruption
+   Solution: random ISN + TIME_WAIT (2xMSL) lets old segments die first
+```
 
 ---
 
@@ -232,6 +322,49 @@ TCP defines **11 states**. `CLOSED` is *fictional* (represents "no connection").
 | **CLOSING** | Both sides sent FIN simultaneously (rare). |
 | **LAST_ACK** | Sent our FIN, waiting for final ACK. |
 | **TIME_WAIT** | Sent final ACK; waiting 2×MSL for old segments to expire. |
+
+### Full state-transition diagram (draw the big one)
+```
+         ┌────────────────────────────────────────────────────┐
+         │                                                    │
+         ▼                                                    │
+   ┌─────────┐   passive open    ┌─────────┐                  │
+   │ CLOSED  │────────▶─────────│ LISTEN  │                  │
+   └────┬────┘                  └────┬────┘                  │
+        │ active open                │ recv SYN              │
+        │ (send SYN)                 │ send SYN+ACK          │
+        ▼                            ▼                       │
+   ┌──────────┐  recv SYN+ACK   ┌──────────┐                 │
+   │ SYN_SENT │──send ACK──────▶│ SYN_RCVD │                 │
+   └────┬─────┘                 └────┬─────┘                 │
+        │                           │ recv ACK               │
+        └───────────┐               │                        │
+                    ▼               ▼                        │
+               ┌─────────────┐      │                        │
+          ┌────│ ESTABLISHED │◀─────┘                        │
+          │    └─────┬───────┘  (normal data transfer)       │
+          │  (close:  │  send FIN)                           │
+          │           ▼                                      │
+          │    ┌───────────┐   recv ACK   ┌───────────┐      │
+          │    │ FIN_WAIT_1│────────────▶│ FIN_WAIT_2│      │
+          │    └───────────┘              └─────┬─────┘      │
+          │           │                         │ recv FIN   │
+          │           │ (recv FIN, send ACK)    │ send ACK    │
+          │           ▼                         ▼            │
+          │    ┌───────────┐              ┌───────────┐       │
+          │    │  CLOSING  │              │ TIME_WAIT │       │
+          │    └───────────┘              │ (2xMSL)   │       │
+          │           │                   └───────────┘       │
+          │           │                      │                │
+          └─ recv ACK │                      │ (timeout)      │
+                      ▼                      ▼                │
+                  ┌────────────────────────────────────┐
+                  │              CLOSED                │
+                  └────────────────────────────────────┘
+
+   Passive-close side (server):
+        ESTABLISHED ─(recv FIN, send ACK)▶ CLOSE_WAIT ─(close, send FIN)▶ LAST_ACK ─(recv ACK)▶ CLOSED
+```
 
 ### Establishment path (draw this)
 ```
@@ -277,6 +410,12 @@ After the **active close** sends its final ACK, TCP stays in **TIME_WAIT for 2×
 ### CLOSING state
 Both sides try to close at the **same time** — each sends a FIN and enters FIN_WAIT_1; each receives the other's FIN and moves to **CLOSING** instead of FIN_WAIT_2; each sends an ACK, then goes to TIME_WAIT.
 
+```
+ simultaneous close:
+   A ──FIN──▶ B     and   A ◀──FIN── B  (both at once)
+   both go FIN_WAIT_1 → CLOSING (not FIN_WAIT_2) → TIME_WAIT
+```
+
 ### Connection reset (RST)
 If something goes wrong (port not listening, crash, protocol error), a **RST (reset)** segment aborts the connection immediately — no graceful close.
 
@@ -289,13 +428,37 @@ If something goes wrong (port not listening, crash, protocol error), a **RST (re
 - The **ACK number** tells the sender: "I've received all bytes up to (ack-1); please send from ack onward."
 - This makes TCP **reliable** — missing bytes are retransmitted.
 
+```
+ Byte stream with sequence numbers:
+   [0][1][2][3][4][5][6][7][8][9] ...
+       ^             ^
+      segment 1      segment 2
+   sender sends bytes 0-4 → receiver ACKs "ack=5" (received up to 4)
+   a lost byte → no ACK → receiver asks for it again (retransmission)
+```
+
 ### The advertised (receive) window — Flow Control
 - Each side tells the other how much **receive buffer** space is free (the **advertised window**).
 - The sender must not send more than the window → prevents **overflowing** the receiver's buffer.
 - The window changes dynamically: shrinks as data arrives, grows as the app reads.
 
+```
+ Flow control with window:
+   receiver: "my FREE buffer is 1000 bytes"  ──►  sender may send ≤1000
+   as receiver reads data, it advertises more space; as buffer fills, window shrinks
+```
+
 ### Sliding window
 The sender keeps track of a window of unacknowledged bytes. As ACKs arrive, the window **slides forward**, allowing new data to be sent. This lets TCP send many bytes in flight (pipelining) instead of one-at-a-time.
+
+```
+ Sliding window (sender's view of bytes):
+   |#### sent+acked ####|~~~ sent, unacked ~~~|  allowed-to-send  |   can't send  |
+                        ▲                     ▲
+                  left edge slides right   right edge slides right
+                  as ACKs arrive            as window allows more
+   → many bytes in flight at once (pipelining) → high throughput
+```
 
 ### TCP flags (mentioned in the PPTX, good for understanding)
 - **SYN** — synchronise (connection request).
@@ -310,6 +473,16 @@ The sender keeps track of a window of unacknowledged bytes. As ACKs arrive, the 
 - **Slow start**: begin with a small congestion window (cwnd); double it each RTT until a threshold (ssthresh) — grows quickly.
 - **Congestion avoidance**: after ssthresh, grow cwnd slowly (roughly +1 per RTT) to probe for available capacity.
 - On **packet loss**, TCP reduces cwnd (halves it, or drops to 1 in slow start) — this throttles the sender so it doesn't overrun the network.
+
+```
+ Congestion window growth over time:
+   cwnd
+   ▲   /|            slow start (double each RTT)
+   │  / |  ______    congestion avoidance (add 1 per RTT)
+   │ /  | /
+   │/   |/    ← ssthresh  (packet loss → cwnd drops back)
+   └───────────────────────────▶ time
+```
 
 ### Nagle's algorithm & delayed ACK (worth knowing)
 - **Nagle's algorithm**: don't send small segments if there is already unacknowledged data in flight — coalesce small writes into bigger packets. Good for throughput, can add latency for tiny interactive messages.
@@ -326,11 +499,28 @@ The sender keeps track of a window of unacknowledged bytes. As ACKs arrive, the 
 - **1024–49151**: **registered** ports (IANA-registered, e.g., 1433=SQL Server, 3306=MySQL).
 - **49152–65535**: **dynamic / private / ephemeral** ports — automatically assigned to client sockets.
 
+```
+ Port number scale (16-bit, 0-65535):
+  0 ──────────── 1023 ─────────────── 49151 ───────────── 65535
+  │   well-known     │     registered      │  ephemeral   │
+  │ (HTTP 80, HTTPS  │   (MySQL 3306,      │ (client auto)
+  │  443, FTP 21)    │    SQL 1433)        │
+```
+
 ### What is a socket?
 A **socket** = an **endpoint for communication**. At the TCP/UDP level, it is identified by the **IP address + port number**.
 
 - **Socket address** = (IP address, port number).
 - When two sockets exchange data, the pair forms a connection.
+
+```
+  One host (IP = 192.168.1.5)
+   ┌─────────────────────────────┐
+   │  app A → port 80            │   each (IP,port) is one socket/endpoint
+   │  app B → port 3306          │
+   │  app C → port 54321 (ephem) │
+   └─────────────────────────────┘
+```
 
 ### Socket pair (HIGH)
 For a TCP stream, the **socket pair** is a **4-tuple**:
@@ -338,6 +528,14 @@ For a TCP stream, the **socket pair** is a **4-tuple**:
 (local IP, local port, foreign IP, foreign port)
 ```
 This 4-tuple **uniquely identifies every TCP connection on the Internet.** Two sockets in the pair are called the **local socket** and the **foreign (remote) socket**.
+
+```
+  client (C, cp) ──────────────(C,cp , S,sp)─────────────▶ server (S, sp)
+      │         local IP=client, local port=cp,
+      │         foreign IP=server, foreign port=sp
+   the 4-tuple (C,cp,S,sp) is UNIQUE — two hosts can have many
+   simultaneous connections because each pair differs in at least one value
+```
 
 ### Types of sockets
 | Socket type | Protocol | Characteristics |

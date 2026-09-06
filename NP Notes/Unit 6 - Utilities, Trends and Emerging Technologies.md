@@ -66,6 +66,24 @@ CLIENT                                           SERVER
 4. Loop: read a frame, optionally broadcast it to all connected clients.
 ```
 
+```
+ WEBSOCKET SERVER FLOW (completeness)
+   socket() → bind() → listen()          ← ordinary TCP server
+        │
+        ▼  connect() arrives
+   conn = accept()
+        │
+        ▼  client sends HTTP Upgrade request
+   read request; verify "Upgrade: websocket"
+        │
+        ▼
+   send "HTTP/1.1 101 Switching Protocols" + Sec-WebSocket-Accept
+        │  ── now the connection is a WebSocket (full duplex) ──
+        ▼
+   loop { read frame from conn ──▶ / parse opcode+payload / handle or broadcast }
+        and, if needed: server can PUSH frames to any client at any time
+```
+
 ### WebSocket frames & protocol internals (RFC 6455)
 After the handshake, data travels in small pieces called **frames**. A frame header starts with a byte:
 ```
@@ -111,6 +129,25 @@ message HelloReply   { string message = 1; }
 **gRPC vs REST:** gRPC = binary protobuf + HTTP/2 + streaming; REST = JSON over HTTP/1.1, human-readable, simpler.
 
 **gRPC call models:** **Unary** (one request, one response), **server streaming** (one request, many responses), **client streaming** (many requests, one response), and **bidirectional streaming** (many requests, many responses − full duplex).
+
+```
+ THE FOUR gRPC CALL MODELS (draw these)
+ UNARY                SERVER STREAMING     CLIENT STREAMING     BIDIRECTIONAL
+ C          S         C          S         C          S         C          S
+ │ req ───▶│          │ req ───▶│          │ req1 ──▶│          │ req1 ──▶│
+ │ ◀──resp │          │ ◀──resp1│          │ req2 ──▶│          │ ◀──resp1│
+ │         │          │ ◀──resp2│          │ req3 ──▶│          │ req2 ──▶│
+ │         │          │ ◀──resp3│          │ ◀──resp │          │ ◀──resp2│
+ │ one-to-one         │ 1 → many           │ many → 1            │ many ↔ many
+```
+
+**How the pieces fit (proto → code → client/server):**
+```
+ .proto file (Greeter/SayHello)  ──protoc compile──▶  stubs for C++/Java/Python/Go...
+        │
+        ├─▶ server: implements the service, runs on a port
+        └─▶ client: calls the generated stub → transparently an RPC over HTTP/2
+```
 
 ---
 

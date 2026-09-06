@@ -168,6 +168,14 @@ A socket address structure is passed **by reference** (a pointer) along with its
 
 ### Case 1 — Process → Kernel (`bind`, `connect`, `sendto`, `sendmsg`)
 The process knows the structure's size, so it passes a **pointer + an integer size**.
+
+```
+ Process ──bind()──▶ Kernel
+   │ give: pointer + size (an ordinary int value)
+   └▶ int bind(int sockfd, struct sockaddr *addr, socklen_t addrlen);
+                       ¬──────── integer size, passed BY VALUE ────────¬
+       The kernel only READS this value (it does not write back) → not value-result
+```
 ```c
 struct sockaddr_in serv;
 connect(sockfd, (SA *) &serv, sizeof(serv));   /* integer size, by value */
@@ -184,6 +192,19 @@ getpeername(fd, (SA *) &cli, &len);  /* on return, len = result: "this much was 
 - For **fixed-size** structures (16-byte IPv4, 28-byte IPv6) the returned length is fixed.
 - For **variable-size** ones (`sockaddr_un`, whose pathname varies) the length can be **less** than the max — it tells you exactly how much was used.
 - On the **kernel→process** path the kernel **truncates** the address if your buffer is too small; on some systems the returned length is the untruncated value so you can detect truncation.
+
+```
+Case 2 — Kernel → Process (accept/recvfrom/getpeername/getsockname)  =  VALUE-RESULT
+ Process                              Kernel
+    │                                   │
+    │  I tell kernel my buffer size      │
+    │  (value: "I have len bytes")       │
+    └──────────&len (pointer)──────────▶ │  kernel writes the address into cli,
+                                        │  then writes back the ACTUAL size
+    ◀──────────len updated───────────── │
+    │  now len = result: how much was written
+    └▶ len is BOTH an input value AND an output result  →  “value-result”
+```
 
 ---
 
@@ -234,8 +255,18 @@ uint32_t ntohl(uint32_t v);   /* network → host LONG */
 ## 2.6 Hostname & Network Name Lookups
 
 - **DNS** translates human-friendly names (e.g., `www.example.com`) to IP addresses (and back).
-- **`gethostbyname(name)`** returns a pointer to **`struct hostent`**:
-  ```c
+
+```
+ Name resolution flow (DNS):
+   app calls gethostbyname("www.example.com")
+        │
+        ▼
+   resolver (client side) ──query──▶  DNS server ──answer(IP)──▶  resolver
+        │
+        ▼
+   returns struct hostent (with IPs in network byte order)
+```
+- **`gethostbyname(name)`** returns a pointer to **`struct hostent`**:  ```c
   struct hostent {
       char  *h_name;       /* official (canonical) hostname */
       char **h_aliases;    /* array of alias names */
@@ -267,6 +298,27 @@ socket() → connect() → read()/write() → close()
 Server: socket() → bind() → recvfrom() → sendto() → close()
 Client: socket() → sendto() → recvfrom() → close()
 ```
+
+### The TCP + UDP call map (the whole unit in one diagram — draw this)
+```
+                    TCP — CONNECTION-ORIENTED                    UDP — CONNECTIONLESS
+ SERVER              CLIENT                  SERVER              CLIENT
+  socket()            socket()                socket()            socket()
+    │                   │                       │                   │
+  bind()                │                     bind()                │
+    │                   │                       │                   │
+ listen()               │                       │                   │
+    │                   │                       │                   │
+ accept() ◀──◀───── connect()                 recvfrom() ◀─────◀─ sendto()
+    │      | 3-way       │                       │ (blocks until     │
+    |      | handshake   │                       │   a datagram)     │
+  read() ◀────────── write()                  sendto() ──────────▶ recvfrom()
+  write() ──────────▶ read()                     │                   │
+    │                   │                       │                   │
+ close()                close()               close()              close()
+```
+- **TCP**: server `bind→listen→accept`; client just `connect` (no bind — kernel picks port). One extra connected socket is returned by `accept` for each client.
+- **UDP**: **no** `connect/listen/accept` — the server binds, the client `sendto`, and both use `recvfrom/sendto` with the peer's address on every datagram.
 
 ### `socket()` — create an endpoint
 ```c
