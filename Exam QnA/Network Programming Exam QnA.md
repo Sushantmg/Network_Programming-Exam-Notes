@@ -1070,118 +1070,112 @@ Securing a network application requires **layers** of protection — access cont
 ---
 **Marking scheme (6–8 marks):** hostname = **2**, IP = **1**, wrapper program (concept + example) = **2**, TLS/SSL = **2**, best practice layering = **1**.
 
----## Units 4 & 5 — Winsock
+## Unit 4 — Winsock Basics
 
 ### Q31 🔴★ How is Winsock different from UNIX sockets? + static vs dynamic linking. (asked: NCIT 2025 Q6a — 7 marks)
 
-**Winsock = the Windows implementation of the BSD/Berkeley socket API.** It provides the same socket programming model but adapted for the Windows environment — its own setup, handle types, error handling, and extra I/O models.
+**The short answer:** Berkeley sockets were invented on UNIX. **Winsock is simply the same socket idea rewritten for Windows.** Because Windows is *not* UNIX, the same concepts have different names, a different socket type, different error handling, and one extra "setup step" you must do first.
 
-**Comprehensive comparison table (memorise this):**
+**Simple mental model:** the socket API is like a language. Both UNIX and Windows speak it, but Windows spells some words differently and insists you "introduce yourself" (init) before talking.
 
-| Feature | Unix / Berkeley | Winsock |
+| Feature | UNIX | Windows (Winsock) |
 |---|---|---|
-| Socket type | `int` (file descriptor: 0, 1, 2, 3...) | `SOCKET` (opaque handle, not an fd) |
-| Close a socket | `close(fd)` | `closesocket(s)` |
-| Read/write | `read()`/`write()` (also `send`/`recv`) | `send()`/`recv()` only (no `read`/`write`) |
-| Error reporting | global variable `errno` | `WSAGetLastError()` function |
-| Setup before use? | **None needed** — `socket()` just works | **Must call `WSAStartup()` first**, and `WSACleanup()` when done |
-| Address structure | `struct sockaddr_in` (same semantics) | `SOCKADDR_IN` (same semantics, different name) |
-| Include header | `<sys/socket.h>`, `<netinet/in.h>` | `<winsock2.h>` + link `ws2_32.lib` |
-| Async I/O models | `select`, `poll`, `epoll`, `kqueue` | **WSAAsyncSelect, WSAEventSelect, overlapped, IOCP** |
-| Network init | no DLL loading | loads `ws2_32.dll` (Winsock DLL) |
+| What a socket is | an `int` (0,1,2,...) | a `SOCKET` (special number) |
+| Close it with | `close(fd)` | `closesocket(s)` |
+| Send/receive with | `read()`/`write()` or `send()`/`recv()` | only `send()`/`recv()` |
+| Errors reported via | `errno` (a variable) | `WSAGetLastError()` (a function) |
+| Before the first socket call | nothing needed — works instantly | **must call `WSAStartup()` first** |
+| After the last socket call | nothing needed | **must call `WSACleanup()`** |
+| Header file | `<sys/socket.h>` | `<winsock2.h>` |
+| Extra I/O models | select, poll, epoll | WSAAsyncSelect, WSAEventSelect, overlapped, IOCP |
 
-**Why `WSAStartup()`? — DLLs (Dynamic Link Libraries):**
-- Windows loads network protocol support as **DLLs** (shared code libraries). A program cannot call socket functions directly in the kernel; it must first load `ws2_32.dll`.
-- `WSAStartup()` loads the DLL and negotiates a Winsock version (e.g. 2.2).
-- Unix uses kernel system calls — the kernel always provides the network API, so no DLL loading is needed.
+**Why the setup step exists — DLLs:** on UNIX the network code always lives *inside the kernel*, ready to use. On Windows the network code lives in a **DLL file** (`ws2_32.dll`) that must be **loaded into your program first**. That "load + agree on a version" is exactly what `WSAStartup()` does. So Winsock = socket programming that first loads a library.
 
-**Static vs Dynamic linking:**
+**Static vs dynamic linking (how you attach that library):**
 
-| | Dynamic linking (DLL) | Static linking |
+| | Dynamic (DLL) | Static |
 |---|---|---|
-| Where is the code? | Separate `.dll` file, loaded at run time | Copied into the `.exe` at compile time |
-| Executable size | **Smaller** (code not embedded) | **Larger** (code embedded) |
-| Updating | **Easy** — replace the DLL, all programs pick up the fix | **Hard** — must recompile and redistribute the `.exe` |
-| Dependency | Needs the DLL present, correct version ("**DLL hell**" if wrong version) | **No external dependency** — always runs |
-| Code sharing | Multiple programs share one DLL | Each program has its own copy |
+| Where the library code lives | in a separate `.dll` file | copied inside your `.exe` |
+| Executable size | small | big |
+| Updating it | just replace the DLL | must recompile everyone |
+| Runs everywhere? | fails if DLL missing/wrong version ("DLL hell") | always runs |
+| Shared by programs | yes, many apps share one DLL | no, each program has its own copy |
 
-**Winsock example (showing the differences):**
+**Mini example showing the differences:**
 ```c
-// WINSTOCK
-#include <winsock2.h>          // must include winsock2.h
-#pragma comment(lib, "ws2_32.lib")  // link to ws2_32.dll
+#include <winsock2.h>                    // Windows header
+#pragma comment(lib, "ws2_32.lib")       // tells the compiler to use the DLL
 
-WSADATA wsaData;
-WSAStartup(MAKEWORD(2,2), &wsaData);   // MUST call before any socket function
+WSADATA wd;
+WSAStartup(MAKEWORD(2,2), &wd);          // STEP 0: load the DLL (UNIX has no step 0)
 SOCKET s = socket(AF_INET, SOCK_STREAM, 0);
-// ... use socket ...
-closesocket(s);     // not close()
-WSACleanup();       // match every WSAStartup
+// ... normal socket code ...
+closesocket(s);                          // not close()
+WSACleanup();                            // end: unload the DLL
 ```
 
 ---
-**Marking scheme (7 marks):** comparison table = **3**, DLL concept + WSAStartup = **2**, static-vs-dynamic = **2**.
+**Marking scheme (7 marks):** comparison table = **3**, DLL + WSAStartup idea = **2**, static-vs-dynamic = **2**.
 
 ---
 
 ### Q32 🔴★ WSAStartup / WSACleanup; role of setup(), cleanup(). (asked: NCIT Q6b, Gandaki Q5a)
 
-**`WSAStartup(MAKEWORD(2,2), &wsadata)`** — the **setup function** (called once before any socket function):
-- `MAKEWORD(2,2)` requests Winsock **version 2.2**.
-- The OS loads `ws2_32.dll` and negotiates the version.
-- `wsadata` (a `WSADATA` struct) returns: the loaded version, the description, and status.
-- **Must succeed** (return 0) — if it fails, no network functions will work.
-- You can call it **multiple times** if needed (it is reference-counted).
+**Plain meaning:** on Windows the network code is in a DLL. Before you use *any* socket function you must (1) load that DLL and (2) agree on which Winsock version you want. That is exactly what `WSAStartup()` does. When your program is done, `WSACleanup()` unloads it. They are a **pair — one cleanup per startup** (like open/close a file).
 
-**`WSACleanup()`** — the **cleanup function** (must match every `WSAStartup`):
-- Decrements the Winsock **reference count**.
-- When the count reaches 0, the DLL is **unloaded** and all Winsock resources are freed.
-- Called **once** when the program is shutting down.
-- If you forget it, resources leak (minor in practice since the OS cleans up at process exit).
+**`WSAStartup(MAKEWORD(2,2), &wsadata)` step by step:**
+1. `MAKEWORD(2,2)` = "I want version 2.2" (major 2, minor 2).
+2. Windows loads `ws2_32.dll` (the network library) into your program.
+3. It fills `wsadata` (a `WSADATA` struct) with: the version actually loaded, a description string, and limits.
+4. It returns `0` if all went well — **you must check this**. If it fails, no network code will work, so exit.
 
-**"setup() / cleanup()" in the exam paper = `WSAStartup()` and `WSACleanup()`.** They are the Windows equivalent of "no init needed" on Unix — Unix provides the socket API in the kernel at all times; Windows loads it on demand.
+**`WSACleanup()`:**
+- Unloads the DLL / frees network resources.
+- Counting rule: Windows keeps a **reference count** — each `WSAStartup` adds 1, each `WSACleanup` subtracts 1. The DLL is truly unloaded only when the count reaches 0.
+- Forgetting it wastes a little memory (Windows cleans up at program exit anyway) — but always pair them for correctness.
 
-**Reference counting:** if two DLLs in the same process both call `WSAStartup`, the DLL is loaded once (count=2). Each `WSACleanup` decrements the count; when it reaches 0, the DLL is truly unloaded.
+**"setup() / cleanup()" in the exam = `WSAStartup()` / `WSACleanup()`.** They exist only on Windows; on UNIX the kernel always has the socket code ready, so there is nothing to set up.
 
-**Error on missing WSAStartup:** every Winsock call returns **`WSANOTINITIALISED`** if called before `WSAStartup` — a very common beginner mistake on Windows.
+**Classic beginner mistake:** call any socket function before `WSAStartup`, and every call returns error **`WSANOTINITIALISED`** ("you forgot to init").
 
 ---
-**Marking scheme (6–7 marks):** WSAStartup explained = **3**, WSACleanup explained = **2**, reference counting + error = **1–2**.
+**Marking scheme (6–7 marks):** WSAStartup explained = **3**, WSACleanup explained = **2**, reference count + error = **1–2**.
 
 ---
 
 ### Q33 🔴★ Major DLLs needed for a Winsock app. (asked: NCIT Q6b — 8 marks)
-Windows organises the network stack as a hierarchy of **DLLs** (Dynamic Link Libraries). A Winsock application depends on several:
 
-| DLL | Role | When is it loaded? |
+**Plain meaning:** Windows splits its network stack into several DLL files. Your program usually deals with only one — `ws2_32.dll` — the rest are loaded automatically when needed.
+
+| DLL | Job | Loaded when |
 |---|---|---|
-| `ws2_32.dll` | **Main Winsock 2.0 API** — the primary DLL you link (`#pragma comment(lib, "ws2_32.lib")`) | Loaded by `WSAStartup` |
-| `wsock32.dll` | Winsock 1.1 32-bit API (legacy, backward-compatible) | Loaded if old app calls WSA 1.1 functions |
-| `winsock.dll` | Winsock 1.1 **16-bit** API (very old, Windows 3.1) | Only for 16-bit apps |
-| `mswsock.dll` | Microsoft-specific extensions: `AcceptEx`, `TransmitFile`, `WSASendDisconnect`, etc. | On demand when extensions are used |
-| `wshtcpip.dll` | **TCP/IP helper** — routines for TCP/IP-specific operations (e.g. `GetAddressByName`) | On demand by helper functions |
-| `msafd.dll` | **Winsock ↔ kernel interface** — the layer that translates Winsock calls into kernel network calls | Internally by the stack |
-| `wship6.dll` | IPv6 helper — `WSAAddressToString`, `WSAStringToAddress` for IPv6 | On demand for IPv6 operations |
+| `ws2_32.dll` | **the main one** — the whole Winsock 2 API | by `WSAStartup` |
+| `wsock32.dll` | old Winsock 1.1 (32-bit) | an old program asks for 1.1 |
+| `winsock.dll` | ancient Winsock 1.1 (16-bit, Windows 3.1) | ancient programs only |
+| `mswsock.dll` | Microsoft extras: `AcceptEx`, `TransmitFile`, ... | you call one of those extras |
+| `wshtcpip.dll` | TCP/IP helper functions | helper functions are used |
+| `msafd.dll` | links Winsock to the kernel (the "engine") | internally by the stack |
+| `wship6.dll` | IPv6 helpers (`WSAAddressToString`, ...) | you do IPv6 operations |
 
-**How DLLs work (brief):**
-- **Dynamic linking:** the library code lives in a separate `.dll` file loaded at run time. The `.exe` does not contain the library code — it calls into the DLL.
-- **Advantages:** smaller executable, easy to update (replace the DLL, all programs pick up the fix), code is shared across programs.
-- **Disadvantages:** if the DLL is missing, wrong version, or corrupted, the program may fail to start ("dependency problem" / "**DLL hell**").
+**DLL concept (know this):** a DLL is a library that lives in its own file and is attached to your program at *run time* — your `.exe` does not contain that code, it *calls into* the DLL.
+- **Pros:** smaller programs, easy updates (replace one DLL fixes all apps), code shared by many apps.
+- **Cons:** if the DLL is missing or the wrong version, your program won't start — the famous "**DLL hell**".
 
-**Static vs dynamic linking (also asked):**
-- **Dynamic (DLL):** code in a shared `.dll`, loaded at run time. Smaller `.exe`, easier updates, but requires the DLL present.
-- **Static:** code copied into `.exe` at compile time. No external dependency, always runs, but larger executable and must recompile to update.
+**Static vs dynamic (asked together):** static = library code copied *inside* your `.exe` (bigger, always runs); dynamic = lives in the `.dll` (smaller, needs the DLL present).
 
 ---
-**Marking scheme (8 marks):** table of DLLs = **4**, ws2_32 = **1**, mswsock extensions = **1**, DLL concept (pros/cons) = **1**, static-vs-dynamic = **1**.
+**Marking scheme (8 marks):** DLL table = **4**, ws2_32 = **1**, mswsock extras = **1**, DLL pros/cons = **1**, static vs dynamic = **1**.
 
 ---
 
 ### Q34 🔴★ Winsock TCP & UDP client-server sequences with code. (asked: Gandaki Q5b — 8 marks)
 
-**TCP server (full sequence + code):**
+**TCP server — the whole recipe (memorise this order):**
 ```
 WSAStartup → socket → bind → listen → accept → recv/send → closesocket → WSACleanup
+  init      make      claim    wait in   pick up   talk     hang up     unload
+  (load)    a raw     an       line      the       (data)
+  the DLL   socket    address  standing  waiting
 ```
 
 ```c
@@ -1190,301 +1184,270 @@ WSAStartup → socket → bind → listen → accept → recv/send → closesock
 #pragma comment(lib, "ws2_32.lib")
 
 int main() {
-    WSADATA w; WSAStartup(MAKEWORD(2,2), &w);        // 1. init
+    WSADATA w; WSAStartup(MAKEWORD(2,2), &w);   // 1. init: load the network DLL
 
-    SOCKET s = socket(AF_INET, SOCK_STREAM, 0);        // 2. create
+    SOCKET s = socket(AF_INET, SOCK_STREAM, 0); // 2. create a raw socket
 
-    SOCKADDR_IN sa;
-    sa.sin_family = AF_INET;
-    sa.sin_port = htons(5150);
-    sa.sin_addr.s_addr = htonl(INADDR_ANY);            // 3. bind
-    bind(s, (SOCKADDR*)&sa, sizeof(sa));
+    SOCKADDR_IN sa;                             // 3. prepare the address:
+    sa.sin_family = AF_INET;                    //    - IPv4
+    sa.sin_port = htons(5150);                  //    - port 5150
+    sa.sin_addr.s_addr = htonl(INADDR_ANY);     //    - accept on any IP
+    bind(s, (SOCKADDR*)&sa, sizeof(sa));        // 4. claim this address
 
-    listen(s, 5);                                       // 4. listen (backlog = 5)
+    listen(s, 5);                               // 5. "wait in line" (5 queued)
 
     SOCKADDR_IN cli; int clen = sizeof(cli);
-    SOCKET cs = accept(s, (SOCKADDR*)&cli, &clen);     // 5. accept (blocks until client)
+    SOCKET cs = accept(s, (SOCKADDR*)&cli, &clen); // 6. pick up the first caller (blocks)
 
-    char buf[1024]; int n = recv(cs, buf, sizeof(buf), 0); // 6. recv
-    send(cs, buf, n, 0);                               // 7. send
+    char buf[1024]; int n = recv(cs, buf, sizeof(buf), 0); // 7. read client's message
+    send(cs, buf, n, 0);                        // 8. echo it back
 
-    closesocket(cs); closesocket(s);                   // 8. close
-    WSACleanup();                                      // 9. cleanup
+    closesocket(cs); closesocket(s);            // 9. hang up
+    WSACleanup();                               // 10. unload the DLL
 }
 ```
 
-**TCP client (full sequence):**
+**TCP client:**
 ```
 WSAStartup → socket → connect → send/recv → closesocket → WSACleanup
 ```
+(no `bind` — the OS freely picks a port for you; no `listen`/`accept` — the client is not a server)
 
 ```c
 SOCKET s = socket(AF_INET, SOCK_STREAM, 0);
 SOCKADDR_IN sa; sa.sin_family = AF_INET; sa.sin_port = htons(5150);
 inet_pton(AF_INET, "127.0.0.1", &sa.sin_addr);
-connect(s, (SOCKADDR*)&sa, sizeof(sa));                 // no bind needed (kernel assigns ephemeral)
+connect(s, (SOCKADDR*)&sa, sizeof(sa));         // dial the server
 send(s, "hello", 5, 0);
 recv(s, buf, sizeof(buf), 0);
 closesocket(s);
 ```
 
-**UDP server:**
-```
-WSAStartup → socket → bind → recvfrom → closesocket → WSACleanup
-```
-(No `listen`/`accept` — UDP is connectionless.)
+**UDP — no queue, no connection (connectionless):**
+- Server: `WSAStartup → socket → bind → recvfrom → closesocket → WSACleanup` (no `listen`/`accept`).
+- Client: `WSAStartup → socket → sendto → closesocket → WSACleanup` (no `bind`, no `connect` — each `sendto` names the destination).
 
-**UDP client:**
-```
-WSAStartup → socket → sendto → closesocket → WSACleanup
-```
-(No `bind` needed, no `connect` — you specify the peer with each `sendto`.)
-
-**Key difference between TCP and UDP:**
-- TCP: `listen()` and `accept()` are required on the server — they establish the connection.
-- UDP: no `listen`/`accept` — the server just binds and waits for datagrams with `recvfrom`.
+**The one big TCP-vs-UDP difference:** TCP needs `listen()` + `accept()` to build a connection, then you talk with `recv`/`send` on it. UDP skips the queue entirely — the server just binds and waits for datagrams with `recvfrom`, and each client `sendto` already names where it is going.
 
 ---
-**Marking scheme (8 marks):** TCP server code = **3**, TCP client = **2**, UDP server sequence = **2**, TCP-vs-UDP difference = **1**.
-
----
-
-### Q35 🔴★ What is overlapped I/O in Winsock? How does it support async? (asked: NCIT 2025 Q7a — 7 marks)
-
-**Overlapped I/O** is Winsock's model for issuing **multiple I/O operations simultaneously** and letting the kernel handle them in the background. Instead of blocking on each read/write, the process **continues working** and is notified when each operation completes.
-
-**How it works:**
-1. Create the socket as **overlapped**: `WSASocket(..., WSA_FLAG_OVERLAPPED)` — this is required; without it, overlapped calls fail.
-2. Issue I/O calls using the overlapped functions: `WSASend`, `WSARecv`, `WSARecvFrom`, `WSAIoctl`, `AcceptEx`.
-3. Each call takes a **`WSAOVERLAPPED` structure** (contains a manual-reset event, status, and offset).
-4. If the operation **completes immediately** → the function returns TRUE. The kernel did all the work.
-5. If the operation **returns `SOCKET_ERROR` + `WSA_IO_PENDING`** → the call was **queued** (this is NOT an error). Completion is signaled later via one of two mechanisms:
-   - **Event object:** the `hEvent` field in `WSAOVERLAPPED` is a Win32 event; the kernel signals it when the operation completes.
-   - **Completion routine (callback):** pass a callback function in the overlapped struct; the kernel calls it when the operation completes.
-
-**Why it supports async:**
-- The thread **does not block** on each I/O operation — it can issue 10 `WSASend` calls at once and continue doing other work.
-- When each completes, the event or callback fires — the thread handles results one at a time, concurrently.
-- One thread can manage **hundreds of outstanding I/O operations** — no thread-per-connection needed.
-- **Best throughput** of all Winsock I/O models.
-
-**Overlapped completion detection (Win32):**
-- `WaitForSingleObject(event, timeout)` — wait for one overlapped to complete.
-- `WaitForMultipleObjects(count, events, ...)` — wait for any of several to complete.
-- When signaled, check with `WSAGetOverlappedResult()` to learn how many bytes were transferred.
-
-**Relationship to Windows IOCP (I/O Completion Ports):**
-- Overlapped + IOCP is the **most scalable** model on Windows — the OS manages a thread pool and dispatches completions to waiting threads, efficiently handling thousands of connections (NT/2000+).
-
----
-**Marking scheme (7 marks):** what overlapped I/O is = **2**, WSA_FLAG_OVERLAPPED + WSAOVERLAPPED = **2**, completion via event/callback = **2**, advantage (thread doesn't block) = **1**.
-
----
-
-### Q36 🟡★ Event-driven programming & WSAEventSelect. (asked: NCIT Q7a alt, Gandaki Q6b)
-
-**Event-driven programming** = the flow of the program is controlled by **events** (input, I/O readiness, messages) rather than a linear sequence. A loop detects events, and the appropriate handler is dispatched when an event fires. This is the dominant pattern for network servers and GUIs.
-
-**WSAEventSelect** enables event-driven I/O in Winsock by associating a socket with a **Win32 event object**:
-
-```c
-WSAEVENT hEvent = WSACreateEvent();   // 1. create event
-WSAEventSelect(s, hEvent, FD_READ | FD_WRITE | FD_CLOSE);  // 2. bind events to socket
-```
-
-**Usage pattern (loop):**
-1. Create events for each socket.
-2. Call `WSAWaitForMultipleEvents(count, events, ...)` — blocks until **one or more** events are signaled.
-3. When woken, call `WSAEnumNetworkEvents(socket, event, &networkEvents)` to find out *what happened* (FD_READ, FD_WRITE, FD_CLOSE, etc.).
-4. Handle the event (e.g. `recv` for FD_READ, `send` for FD_WRITE).
-
-**Key features:**
-- **No window needed** (unlike `WSAAsyncSelect`) — works in console apps and services.
-- Can wait on up to **64 events per thread** (use `WSAWaitForMultipleEvents`'s limit).
-- Socket becomes **non-blocking** automatically after `WSAEventSelect`.
-
-**When to use:**
-- Console servers, background services, or any Windows app that doesn't have a message loop/window.
-- Good for a moderate number of sockets (up to 64 per thread).
-
----
-**Marking scheme (6 marks):** event-driven concept = **2**, WSAEventSelect mechanism = **2**, code pattern = **1**, advantage (no window) = **1**.
-
----
-
-### Q37 🟡★ WSAAsyncSelect vs WSAEventSelect. (asked: NCIT alt)
-Both are "event notification" I/O models that tell you when a socket is ready — but they differ in **how** the notification is delivered:
-
-| Feature | WSAAsyncSelect | WSAEventSelect |
-|---|---|---|
-| Notification mechanism | **Windows messages** to a **window procedure** (WndProc) | **Event object** is signaled (Win32 event) |
-| Requires a window? | **Yes** — needs a message loop and a window handle (HWND) | **No** — works in console/service apps |
-| Target app type | GUI applications with a message loop | Console apps, services, background daemons |
-| How to check readiness | `case WM_SOCKET: ...` in WndProc | `WSAWaitForMultipleEvents` + `WSAEnumNetworkEvents` |
-| Socket mode | Becomes non-blocking | Becomes non-blocking |
-| Scalability | Limited by Windows message queue (many messages → performance) | Up to 64 events per thread, lighter overhead |
-| Portability | Windows only | Windows only |
-
-**WSAAsyncSelect is the older model (Winsock 1.1):**
-- Notifications are delivered as `WM_SOCKET` messages to a window — you handle them in the `WndProc`.
-- Simple for GUI apps that already have a message loop.
-
-**WSAEventSelect is the newer model (Winsock 2.0):**
-- No window required — events are Win32 kernel objects (`WSAEVENT`).
-- Suitable for background services and console apps (the most common Winsock server pattern).
-
-**Key point for exams:** both are Windows-only; both make sockets non-blocking; the only real difference is **how** you are notified (window message vs event object).
-
----
-**Marking scheme (5 marks):** what both are = **1**, table of differences = **3**, when to use each = **1**.
-
----
-
-### Q38 🟡★ WSAPoll vs select. (asked: Gandaki Q6b alt)
-Both are **I/O multiplexing** functions that check which sockets are ready — but differ in the data structures they use:
-
-| Feature | `select` | `WSAPoll` |
-|---|---|---|
-| Data structure | `fd_set` — a fixed bitmap (typically `FD_SETSIZE = 64` on Windows) | **Array of `WSAPOLLFD`** structs — no fixed limit |
-| Size limit | Up to `FD_SETSIZE` (64 on Windows) | **No fixed limit** — dynamically sized array |
-| Sets modified? | **Yes** — select overwrites the fd_sets; must reinitialize before every call | **No** — the array of `WSAPOLLFD` structs is preserved, just update `revents` |
-| Result format | Bit field (`FD_ISSET`) — which fds are ready | Event bitmask in `revents` field of each `WSAPOLLFD` |
-| Portability | Portable (Unix and Windows) | Windows-only (but mirrors Unix `poll`) |
-| Setup per call | Must call `FD_ZERO`, `FD_SET` before each call | Just pass the array — much simpler for many sockets |
-
-**Why WSAPoll is better for many sockets:**
-- With `select`, if you have 100 sockets but `FD_SETSIZE = 64`, you **can't use it** — you need multiple threads or a different model.
-- With `WSAPoll`, you create an array of 100 `WSAPOLLFD` structs and pass it — the OS checks all of them in one call.
-- No need to reinitialize before each call (unlike `select`, which overwrites the fd_sets).
-
-**`WSAPOLLFD` structure:**
-```c
-typedef struct pollfd {
-    SOCKET fd;       // socket to check
-    SHORT  events;   // events interested in (POLLIN, POLLOUT)
-    SHORT  revents;  // events that actually occurred (returned by WSAPoll)
-} WSAPOLLFD;
-```
-
-**When to use:**
-- `WSAPoll` for many sockets on Windows (better than `select` at scale).
-- `select` for simple cases or when portability to Unix is required (both systems have `select`).
-
----
-**Marking scheme (5–6 marks):** what both are = **1**, comparison table = **3**, WSAPollFD structure = **1**, when to use = **0–1**.
+**Marking scheme (8 marks):** TCP server code = **3**, TCP client = **2**, UDP sequence = **2**, TCP-vs-UDP difference = **1**.
 
 ---
 
 ### Q39 🟡 Graceful close in Winsock.
-A **graceful close** ensures all data is delivered before the connection is shut down. In Winsock:
 
+**Plain meaning:** "graceful close" = tell the other side *"I'm done sending"* **politely** (data delivered first) instead of just hanging up violently.
+
+**The two-step close:**
 ```c
-shutdown(s, SD_SEND);   // "I am done sending" — sends TCP FIN to peer
-// ... do any final recv from peer if needed ...
-closesocket(s);         // fully releases the socket
+shutdown(s, SD_SEND);   // step 1: "no more data from me" → sends a polite FIN
+// (optionally keep receiving what the peer still sends)
+closesocket(s);         // step 2: actually release the socket handle
 ```
 
-**Why `shutdown` before `close`:**
-- `shutdown(SD_SEND)` sends a **TCP FIN** to the peer — this is the **half-close** signal. The peer knows no more data will come from you, but can still send.
-- `closesocket(s)` immediately **releases** the socket handle and any buffered data. If there is still data in the send buffer, it may be **discarded** (or sent with RST if linger is set).
-- By calling `shutdown` first, you ensure the FIN is sent **and the peer gets it**, then you call `closesocket` to clean up.
+**Why two steps?**
+- `shutdown(SD_SEND)` sends the TCP **FIN** ("I'm finished *sending*"), but the socket still exists — you can keep **receiving** (this is the half-close).
+- `closesocket()` frees the handle for good.
+- If you call only `closesocket`, the OS may throw away unsent buffered data or send a harsh **RST** (abort) instead of the polite FIN — the peer then sees an error.
 
-**`shutdown` parameters:**
-- `SD_SEND` — stop sending (send FIN).
-- `SD_RECEIVE` — stop receiving (sends RST to peer if data arrives).
-- `SD_BOTH` — stop both (close both directions).
+**The three `shutdown` options:**
+| Option | Meaning |
+|---|---|
+| `SD_SEND` | stop sending (polite FIN) — most common |
+| `SD_RECEIVE` | stop receiving (RST if the peer still sends) |
+| `SD_BOTH` | stop both directions |
 
-**Graceful close sequence:**
-1. Server has finished responding to client.
-2. Server calls `shutdown(s, SD_SEND)` — sends FIN.
-3. Server calls `closesocket(s)` — releases the socket.
-4. Client gets EOF on next `recv` — knows the server is done.
-5. Client sends its own FIN (via `shutdown` + `closesocket`).
-
-**vs abrupt close:**
-- Just calling `closesocket(s)` without `shutdown` is an **abrupt close** — the OS may send a **RST** instead of a FIN, which tells the peer to abort immediately (peer sees `ECONNRESET`).
-- Use `shutdown` + graceful linger (`SO_LINGER`) to ensure data is delivered before closing.
+**Full graceful sequence:** server finishes → `shutdown(SD_SEND)` (FIN) → server `closesocket` → client's next `recv` returns 0 (EOF = "server done") → client closes its side too.
 
 ---
-**Marking scheme (5 marks):** shutdown explained = **2**, closesocket vs shutdown = **1**, half-close concept = **1**, graceful vs abrupt = **1**.
+**Marking scheme (5 marks):** shutdown explained = **2**, closesocket vs shutdown = **1**, half-close idea = **1**, graceful vs abrupt = **1**.
 
 ---
 
 ### Q40 🟢 WSAEnumProtocols / WSAAccept / WSAConnect (Winsock extensions).
-These are **Winsock-specific extensions** (not in standard Berkeley sockets) that add functionality:
 
-**`WSAEnumProtocols`** — list all installed network protocols and their capabilities:
+**Plain meaning:** these three are Windows-only extras (not in the old Berkeley API) that add a power feature each.
+
+- **`WSAEnumProtocols` — "list what's installed."** Returns an array of `WSAPROTOCOL_INFO` structs, one per protocol (TCP, UDP, ...). Each describes family, socket type, and capabilities. Use it to discover which protocols exist and pick the right one.
 ```c
 WSAEnumProtocols(lpiProtocols, lpProtocolBuffer, lpdwBufferLength);
 ```
-Returns an array of `WSAPROTOCOL_INFO` structs — each describes a protocol (TCP, UDP, etc.), its address family, socket type, capabilities (`dwServiceFlags1`), and name. Used to discover what protocols are available and select the right one.
 
-**`WSAAccept`** — accept with a **condition function** (reject or defer connections:
+- **`WSAAccept` — "accept, but check the visitor first."** Like `accept`, but you pass a **condition function** that is called *before* the connection is accepted:
+  - `CF_ACCEPT` — let the client in,
+  - `CF_REJECT` — refuse (sends RST to the client),
+  - `CF_DEFER` — postpone the decision.
+  Useful for filtering/rejecting clients before accepting them.
 ```c
 WSAAccept(s, addr, addrlen, conditionFunction, callbackData);
 ```
-The `conditionFunction` is called **before** the connection is accepted. It can:
-- Return `CF_ACCEPT` — accept the connection.
-- Return `CF_REJECT` — reject it (send RST to client).
-- Return `CF_DEFER` — defer (accept later with `WSAEventSelect` + `WSAGetOverlappedResult`).
-This is useful for rate-limiting or filtering clients before accepting them.
 
-**`WSAConnect`** — connect with **caller data** and **QoS** (Quality of Service):
+- **`WSAConnect` — "connect, with extra requirements."** Like `connect`, but lets you attach **caller data** (`lpCallerData`) for the peer, and **QoS** parameters (`lpSQOS`/`lpGQOS`, e.g. bandwidth/latency) — useful for real-time/multimedia apps.
 ```c
 WSAConnect(s, name, namelen, lpCallerData, lpCalleeData, lpSQOS, lpGQOS);
 ```
-- `lpCallerData`/`lpCalleeData` — send/receive data during the connection setup (not supported by most providers).
-- `lpSQOS`/`lpGQOS` — specify QoS parameters (bandwidth, latency) for the connection. Useful for multimedia or real-time apps.
 
-**When to use:** WSAEnumProtocols for protocol discovery; WSAAccept for connection filtering; WSAConnect for QoS-aware connections. Most Winsock apps use the standard `accept`/`connect` — these extensions are for advanced cases.
+**When to use:** WSAEnumProtocols for protocol discovery, WSAAccept for connection filtering, WSAConnect for QoS. Most normal apps just use plain `accept`/`connect` — these are advanced extras.
 
 ---
 **Marking scheme (4–5 marks):** WSAEnumProtocols = **1**, WSAAccept = **2**, WSAConnect = **1**, when to use = **0–1**.
 
 ---
 
-### Q41 🟡★ 5 Winsock I/O models.
-Winsock offers **five** distinct I/O models for handling asynchronous network operations. Each model represents a different approach to the question: "how do I know when a socket is ready for reading/writing?"
+## Unit 5 — Advanced Winsock
 
-1. **select (select/poll)** — the classic cross-platform model. Pass a set of sockets (`fd_set` or `WSAPOLLFD` array); `select`/`WSAPoll` blocks until one or more are ready. Simple, works everywhere, but limited to `FD_SETSIZE` sockets.
+### Q35 🔴★ What is overlapped I/O in Winsock? How does it support async? (asked: NCIT 2025 Q7a — 7 marks)
 
-2. **WSAAsyncSelect** — Windows message-based model. Bind a socket to a **window** (`HWND`); when events occur (FD_READ, FD_WRITE, etc.), the OS sends a `WM_SOCKET` message to the window's message procedure. Requires a GUI/message loop.
+**Plain meaning:** in normal (blocking) I/O you *wait* for each `send`/`recv` to finish — do one, wait, do the next. **Overlapped I/O** lets you *fire off many socket operations at once* and get a "done" signal later, so your thread is never stuck waiting. It is the trick behind high-speed servers.
 
-3. **WSAEventSelect** — event-object model. Bind a socket to a **Win32 event** (`WSAEVENT`). When events occur, the event is signaled; use `WSAWaitForMultipleEvents` + `WSAEnumNetworkEvents` to detect which sockets fired. **No window needed**; up to 64 events/thread.
+**Analogy:** blocking I/O = ordering one meal and standing at the counter until it's ready. Overlapped I/O = ordering 10 meals, then doing everything else, and being *called* (or getting a bell ring) as each meal becomes ready.
 
-4. **Overlapped I/O** — the most advanced model. Issue multiple `WSASend`/`WSARecv` calls at once using `WSAOVERLAPPED` structures. The kernel runs them in the background; completions are signaled via **events** or **completion routines (callbacks)**. **Best throughput**; one thread manages many outstanding operations.
+**How it works (the steps):**
+1. Create the socket as overlapped: `WSASocket(..., WSA_FLAG_OVERLAPPED)` — forget this flag and overlapped calls fail.
+2. Launch work with the overlapped calls: `WSASend`, `WSARecv`, `WSARecvFrom`, `WSAIoctl`, `AcceptEx`. Every call passes a **`WSAOVERLAPPED`** struct (a small "box" holding a Win32 event + status info).
+3. One of two outcomes:
+   - The operation finishes **instantly** → function returns TRUE, done.
+   - It needs time → function returns `SOCKET_ERROR` with error **`WSA_IO_PENDING`**. **This is NOT a failure** — it means "your job is queued, I'll tell you when it's done."
+4. When each queued job finishes, you are told by one of two mechanisms:
+   - an **Event object** gets signaled (check with `WaitForSingleObject`/`WaitForMultipleObjects`), or
+   - a **completion routine** (a callback function you passed) gets called automatically.
+5. After a signal, `WSAGetOverlappedResult()` tells you how many bytes actually moved.
 
-5. **I/O Completion Ports (IOCP)** — the most scalable model. Create a completion port, associate sockets with it, and let the OS manage a **thread pool** that processes completions as they arrive. Handles **hundreds of thousands** of connections efficiently. Available on NT/2000+ only.
+**Why this means "asynchronous":**
+- Your thread is **never blocked** — it issues 10 operations, then goes and does useful work.
+- **One thread can manage hundreds of outstanding operations** — no need for a thread *per connection* (expensive).
+- Best single-thread throughput of all the Winsock I/O models.
 
-**Which model for which scenario:**
-- Simple app, few sockets: **select** or **WSAEventSelect**.
-- GUI app: **WSAAsyncSelect**.
-- High-throughput server (hundreds of connections): **overlapped I/O**.
-- Very high scalability (thousands of connections): **IOCP**.
+**Where IOCP fits:** attach overlapped sockets to an **I/O Completion Port**, and the OS runs a **thread pool** for you — completed operations are handed to idle threads automatically. That is how servers handle thousands of connections.
 
 ---
-**Marking scheme (7–8 marks):** each model = **1** (5 marks), which-to-use = **2–3**.
+**Marking scheme (7 marks):** what overlapped I/O is = **2**, WSA_FLAG_OVERLAPPED + WSAOVERLAPPED = **2**, event/callback completion = **2**, thread-never-blocks advantage = **1**.
+
+---
+
+### Q36 🟡★ Event-driven programming & WSAEventSelect. (asked: NCIT Q7a alt, Gandaki Q6b)
+
+**Event-driven programming (plain):** instead of "do step 1, then 2, then 3...", the program *waits for things to happen* (events) and reacts. Network servers are event-driven because you never know which socket will need attention next.
+
+**WSAEventSelect = "tell me, via an event, when my socket needs me":**
+```c
+WSAEVENT h = WSACreateEvent();                  // 1. create an "event" object (a bell)
+WSAEventSelect(s, h, FD_READ | FD_WRITE | FD_CLOSE); // 2. ring the bell when readable/writable/closing
+```
+
+**The event loop (how you wait):**
+1. Create one event per socket.
+2. `WSAWaitForMultipleEvents(n, events, ...)` — **block until any bell rings**.
+3. `WSAEnumNetworkEvents(s, h, &ne)` — ask "which socket, and what happened?" → it fills FD_READ / FD_WRITE / FD_CLOSE flags.
+4. Handle it: FD_READ → `recv`/`WSARecv`; FD_WRITE → `send`; FD_CLOSE → clean up.
+
+**Key facts:**
+- Unlike WSAAsyncSelect, **no window is needed** — works in console apps and services.
+- One thread can wait on up to **64 events**.
+- After `WSAEventSelect`, the socket automatically becomes **non-blocking**.
+
+---
+**Marking scheme (6 marks):** event-driven concept = **2**, WSAEventSelect mechanism = **2**, code pattern = **1**, no-window advantage = **1**.
+
+---
+
+### Q37 🟡★ WSAAsyncSelect vs WSAEventSelect. (asked: NCIT alt)
+
+**One idea, two delivery channels:** both tell you "your socket is ready" — the only difference is *how* the message reaches you.
+
+| | WSAAsyncSelect (older, Winsock 1.1) | WSAEventSelect (newer, Winsock 2.0) |
+|---|---|---|
+| How you're told | by a Windows **message** sent to a **window** | by a Win32 **event** (a flag/button) being set |
+| Needs a window? | **Yes** — needs a message loop (HWND) | **No** — works in console/service apps |
+| Best for | GUI programs that already have a window | console servers, background services |
+| How you react | handle the `WM_SOCKET` message in the window procedure | `WSAWaitForMultipleEvents` + `WSAEnumNetworkEvents` |
+| Socket mode | becomes non-blocking | becomes non-blocking |
+| Limitation | message queue can overflow with many sockets | max 64 events per thread |
+
+**Memorise this one line:** both are Windows-only, both make the socket non-blocking — they differ only in **how** they notify you (a window message vs an event object).
+
+---
+**Marking scheme (5 marks):** what both are = **1**, difference table = **3**, when to use each = **1**.
+
+---
+
+### Q38 🟡★ WSAPoll vs select. (asked: Gandaki Q6b alt)
+
+**Plain idea:** both are "check many sockets at once" tools — you say "tell me which of these sockets are ready", and the call blocks until at least one is. The difference is *how* you describe the list of sockets to watch.
+
+| | `select` | `WSAPoll` |
+|---|---|---|
+| You give it | an `fd_set` — a **fixed-size list** (max 64 on Windows) | an **array of `WSAPOLLFD`** — you choose the size |
+| Size limit | stuck at `FD_SETSIZE` (64) | **no fixed limit** |
+| After the call | it **overwrites** your sets — you must rebuild them for every call | keeps your array — just read each socket's `.revents` |
+| Reading results | check bits with `FD_ISSET` | each socket's `revents` field |
+| Portability | works on Windows AND Unix | Windows only (mirror of Unix `poll`) |
+
+**When it matters:**
+- 100 sockets with `select` → **impossible** on Windows (limit 64); you would need several threads.
+- `WSAPoll` → one array of 100 `WSAPOLLFD`, one call, done.
+
+**The `WSAPOLLFD` struct (just 3 fields):**
+```c
+typedef struct pollfd {
+    SOCKET fd;        // which socket to watch
+    SHORT  events;    // what you want to know (POLLIN = read-ready, POLLOUT = write-ready)
+    SHORT  revents;   // filled by WSAPoll: what actually happened
+} WSAPOLLFD;
+```
+
+- Many sockets (on Windows) → **WSAPoll**; portability to Unix or few sockets → **select**.
+
+---
+**Marking scheme (5–6 marks):** what both are = **1**, comparison table = **3**, WSAPOLLFD struct = **1**, when to use = **0–1**.
+
+---
+
+### Q41 🟡★ 5 Winsock I/O models.
+
+**The question all five answer:** "how do I find out when my socket is ready to read or write — without wasting time?" Each model is a different *answer*, from simple to super-scalable.
+
+1. **select / WSAPoll** — *"wait and count."* Give the OS a list of sockets; it blocks until any is ready, then tells you. Simple and works everywhere; Windows `select` caps at 64 sockets.
+
+2. **WSAAsyncSelect** — *"the window will ring me."* Bind a socket to a window; when it's ready, Windows drops a `WM_SOCKET` message in that window's queue. Needs a GUI/message loop — the old GUI-server model.
+
+3. **WSAEventSelect** — *"the bell will ring me."* Bind a socket to a Win32 **event**; when it's ready, the event is signaled, and you wait with `WSAWaitForMultipleEvents`. No window needed; good for console apps/services; up to 64 events/thread.
+
+4. **Overlapped I/O** — *"fire many, get told later."* Launch many `WSASend`/`WSARecv` at once with `WSAOVERLAPPED`; the kernel finishes them in the background and signals via **event or callback**. Best single-thread throughput; one thread runs many operations.
+
+5. **I/O Completion Ports (IOCP)** — *"the OS manages the workers."* Attach sockets to a completion port; the OS runs a **thread pool** that automatically picks up completed operations. Handles **tens of thousands** of connections — the top scalability model.
+
+**Choosing one (exam-ready):**
+| Need | Choose |
+|---|---|
+| simple & few sockets | select / WSAEventSelect |
+| GUI app | WSAAsyncSelect |
+| high throughput, many connections | overlapped I/O |
+| very large scale (thousands) | IOCP |
+
+---
+**Marking scheme (7–8 marks):** each model = **1** (total 5), which-to-use = **2–3**.
 
 ---
 
 ### Q42 🟡★ Is a common Unix+Windows app possible? How? (asked: NCIT Q5b alt)
 
-**Yes — you can write a single codebase that compiles and runs on both Unix and Windows** by abstracting the platform-specific parts behind `#ifdef` preprocessor guards.
+**Yes.** The socket calls themselves (`socket`, `bind`, `listen`, `connect`, `send`, `recv`) are identical on both — only the *surroundings* (headers, socket type, close function, errors, init) differ. So you write the shared logic ONCE and hide the small differences behind `#ifdef _WIN32`.
 
-**What differs between platforms:**
-- Header files: `<sys/socket.h>` (Unix) vs `<winsock2.h>` (Windows).
-- Socket type: `int` (Unix) vs `SOCKET` (Windows).
-- Close function: `close()` (Unix) vs `closesocket()` (Windows).
-- Error reporting: `errno` (Unix) vs `WSAGetLastError()` (Windows).
-- Init/cleanup: no init (Unix) vs `WSAStartup`/`WSACleanup` (Windows).
+**The 5 differences to hide:**
+| Thing | UNIX | Windows |
+|---|---|---|
+| header | `<sys/socket.h>` | `<winsock2.h>` |
+| socket type | `int` | `SOCKET` |
+| close | `close()` | `closesocket()` |
+| errors | `errno` | `WSAGetLastError()` |
+| init | none | `WSAStartup`/`WSACleanup` |
 
-**Cross-platform wrapper pattern:**
+**The wrapper pattern (`#ifdef` splits the differences):**
 ```c
 #ifdef _WIN32
   #include <winsock2.h>
-  #pragma comment(lib, "ws2_32.lib")
-  #define close_socket closesocket     // map Unix name → Windows name
-  typedef int socklen_t;               // Unix has this; Windows may not
+  #define close_socket closesocket
 #else
   #include <sys/socket.h>
   #include <netinet/in.h>
@@ -1492,27 +1455,20 @@ Winsock offers **five** distinct I/O models for handling asynchronous network op
   #define close_socket close
 #endif
 
-/* --- platform-independent code --- */
+/* --- common code below — identical on both --- */
 int s = socket(AF_INET, SOCK_STREAM, 0);
-// ... bind, listen, connect, send, recv ...
-close_socket(s);
-
-#ifdef _WIN32
-  WSACleanup();   // called at program exit, guarded by _WIN32
-#endif
+/* bind, listen, connect, send, recv ... */
+close_socket(s);    // a name that works on both
 ```
 
-**Key practices:**
-1. Put all platform differences behind `#ifdef _WIN32` / `#else` at the top of the file.
-2. Use **`#define close_socket closesocket`** (or a wrapper function) so the rest of the code is clean.
-3. Wrap `WSAStartup`/`WSACleanup` in `#ifdef _WIN32` — they don't exist on Unix.
-4. On Windows, always use `WSAGetLastError()` for socket errors (not `errno`).
-5. For binary compatibility: use `SOCKET` (Windows) and `int` (Unix) behind a typedef, or just use `int` and cast.
-
-**Limitation:** platform-specific features (IOCP on Windows, epoll on Linux) require separate implementations — only use what is common (socket API, select) in the shared code.
+**Rules of thumb:**
+1. Put every platform difference in `#ifdef _WIN32 ... #else ... #endif`.
+2. Give `close` a common name (e.g. `close_socket`) so the shared code stays clean.
+3. On Windows, errors always via `WSAGetLastError()`, never `errno`.
+4. Use only what exists on BOTH (the socket API, `select`) in the shared code — Windows-only IOCP and Linux-only epoll each stay inside their own `#ifdef`.
 
 ---
-**Marking scheme (5–6 marks):** yes + why (header/type/error differences) = **2**, code wrapper pattern = **2**, key practices = **1–2**.
+**Marking scheme (5–6 marks):** yes + the 5 differences = **2**, wrapper code = **2**, key practices = **1–2**.
 
 ---
 ## Unit 6 — Utilities, Trends & Security
