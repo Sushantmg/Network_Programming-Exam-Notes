@@ -16,17 +16,16 @@ Compiled from the **actual NCIT Spring 2025** and **Gandaki College 2025** quest
 ## Unit 1 — Fundamentals
 
 ### Q1 🔴★ Compare and contrast TCP, UDP, and SCTP. (asked: NCIT 2025 Q1a)
-All three are **transport-layer protocols** (Layer 4 of the OSI model) that move application data between two hosts. They differ in **connection**, **reliability**, **ordering**, and **message handling**.
 
-**Transport layer context:**
-- Sits between the application (HTTP, DNS, video…) and the network layer (IP).
-- Responsible for **end-to-end delivery**, **multiplexing** (port numbers), and often **reliability**.
+**Plain meaning:** think of the transport layer as a "delivery company" that moves your application's data from one computer to another. TCP, UDP and SCTP are three different delivery services with different guarantees. **TCP = registered, safe post** (every packet must arrive, in order). **UDP = a letter thrown in a mailbox** (fast, no guarantee, no order). **SCTP = the same safe post, but with two postmen and multiple letter-boxes** (extra reliability for phone networks).
 
-**Point-by-point comparison:**
+**Where they live:** they all sit **between your application and the network** (IP). They take your data, split it, add a port number (so it reaches the right app), and hand it to IP.
+
+**Point-by-point comparison (memorise this table):**
 
 | Feature | TCP | UDP | SCTP |
 |---|---|---|---|
-| Connection | Connection-**oriented** (3-way handshake first) | **Connectionless** (send whenever) | Connection-oriented (4-way handshake) |
+| Connection | Connection-**oriented** (shake hands first) | **Connectionless** (send whenever) | Connection-oriented (4-way handshake) |
 | Reliability | Reliable via ACK + retransmission | Unreliable (best effort) | Reliable (ACK + retransmit) |
 | Ordering | Byte stream, **sequenced** | No ordering | **Message-ordered** |
 | Message boundaries | **No** (pure byte stream) | **Yes** (datagrams) | **Yes** (messages) |
@@ -37,20 +36,21 @@ All three are **transport-layer protocols** (Layer 4 of the OSI model) that move
 | Protection against SYN flood | Partial | n/a | **4-way handshake w/ cookie** |
 | Usage | HTTP, FTP, SMTP, SSH | DNS, NFS, SNMP, VoIP, streaming | Telephony/Signaling (SIGTRAN), IP telephony |
 
-**Why these differences matter:**
-- **Reliability** costs overhead (headers, ACKs) — TCP is right when data must arrive intact (files, web).
-- **No reliability** gives low latency and tiny headers — UDP is right for DNS (one query/response), live audio/video and games where a late packet matters more than a missing one.
-- **SCTP chooses the best of both:** reliable AND preserves message boundaries AND survives a network-interface failure (multi-homing). That is why it is used in telephone signalling — a call must not drop just because one link fails.
+**Why these differences matter (the "which one when" logic):**
+- **Reliability costs extra work** (headers, ACKs). Use TCP when the data *must* arrive intact — files, web pages, email.
+- **No reliability gives low latency and tiny headers.** Use UDP when the data must arrive *fast* and a small loss is fine — DNS (one quick query), live video/audio, games (a late packet is worse than a missing one).
+- **SCTP is the best of both worlds:** reliable AND keeps message boundaries AND survives a network-interface failure (multi-homing). That is why telephone signalling uses it — a call must not drop because one link dies.
 
-**What an examiner looks for:** a table (bulk of marks), a "why each is used" line, and one real example per protocol. Draw a small diagram of the TCP vs UDP packet if you have time.
+**What an examiner wants:** the table (bulk of the marks), one line on *why each exists*, and one real example per protocol.
 
 ---
-**Marking scheme (8 marks):** table = **4**, context sentece = **1**, why-differences-matter = **2**, examples = **1**.
+**Marking scheme (8 marks):** table = **4**, context sentence = **1**, why-differences-matter = **2**, examples = **1**.
 
 ---
 
 ### Q2 🔴★ Explain the TCP three-way handshake. (asked in multiple papers)
-The **three-way handshake** is the process by which a **client (active open)** and a **server (passive open)** establish a reliable TCP connection by exchanging three segments before any data flows.
+
+**Plain meaning:** before two computers can exchange data, they must prove "I'm here and ready". TCP does that with exactly **three packets** — a kind of introduction ceremony between the client and the server.
 
 ```
 CLIENT                                  SERVER
@@ -67,18 +67,17 @@ CLIENT                                  SERVER
    │      CONNECTION ESTABLISHED          │
 ```
 
-**Step-by-step explanation:**
-1. **Client → SYN (seq = x):** the client sends a segment with the **SYN** flag set and an initial sequence number **x**. This is the *active open*.
-2. **Server → SYN+ACK (seq = y, ack = x+1):** the server acknowledges the client's sequence (ack = x+1) and sends its **own** initial sequence number **y**. This is the *passive open*.
-3. **Client → ACK (ack = y+1):** the client acknowledges the server's sequence number. Now **both** sides know the other is alive and ready to send.
+**Step by step (the ceremony):**
+1. **Client → SYN (seq = x):** the client raises a "SYN" flag and says "hi, my numbering starts at x". This is the *active open* — the client is the one reaching out.
+2. **Server → SYN+ACK (seq = y, ack = x+1):** the server answers both at once: "I got your x" (ack = x+1) "and my numbering starts at y". This is the *passive open* — the server accepts.
+3. **Client → ACK (ack = y+1):** the client says "I got your y". Now **both sides know the other is alive and their numbers agree** — data can flow.
 
-**Why called "three-way":** because exactly **three segments/packets** are exchanged (the SYN and ACK in step 2 are combined into one segment — this is why it is not two).
-**What two-way handshake would fail:** the server could never be sure the client actually received its SYN — so the server would "assume" the connection even if the client never agreed (classic two-army problem).
+**Why "three-way" and not "two-way":** step 2 cleverly packs the server's "yes" (SYN) and its confirmation of the client (ACK) into **one packet**. That is why it is exactly three packets total. If only two packets were used, the server could never be sure the client actually received its reply — the classic "two-army problem". The third ACK removes the doubt.
 
-**Purpose / guarantees:**
-- Verifies both sides are **reachable** and **ready**.
-- Exchanges each side's **initial sequence numbers**, so subsequent data segments can be ordered and duplicates detected.
-- Negotiates TCP options (MSS, window scaling, timestamps) during the SYN segments.
+**What the handshake achieves:**
+- Proves both sides are **reachable and ready**.
+- Exchanges **initial sequence numbers (ISN)**, so later data can be ordered and duplicates detected.
+- Negotiates options (MSS, window scaling, timestamps) during these first packets.
 
 ---
 **Marking scheme (7–8 marks):** correct diagram with all seq/ack labels = **3**, each step explained = **3**, "why three-way not two-way" + purpose = **2**.
@@ -87,16 +86,18 @@ CLIENT                                  SERVER
 
 ### Q3 🔴★ Why should the initial sequence number NOT start from 0? Explain TCP state transition diagram. (asked: NCIT 2025 Q1a — 7 marks)
 
-**Part A — Why ISN should not start from 0:**
+**Part A — Why ISN (initial sequence number) should not start from 0:**
 
-- TCP data is identified by **32-bit sequence numbers**. If every connection started at **0**, two different connections (one after the other, or on the same port) would use **overlapping sequence numbers**.
-- An **old, delayed segment** from a previous connection still floating in the network could carry a sequence number that **collides** with the new connection's numbers. The receiver would mistake this stale packet for **valid new data** — corruption without error.
-- If ISN = 0 always, then an attacker can **guess/forge** sequence numbers and inject fake data (sequence-number prediction attack).
-- Solution: each side chooses a **random / unpredictable ISN** AND uses **TIME_WAIT** so old duplicates expire (after 2×MSL) before the numbers can wrap or be reused. The classic rule is the ISN incrementing by a clock roughly every 4 µs, making prediction hard.
+**Plain meaning:** TCP labels every byte with a **sequence number** (a 32-bit counter). If every connection started at the same number (0), two different connections could accidentally use the same labels — and an old, lost packet from an earlier connection could be mistaken for *fresh data* in the new one, silently corrupting it.
+
+The three reasons (write all three):
+1. **Stale-packet collision:** an **old, delayed segment** still floating in the network could carry a sequence number that **matches** the new connection's numbers. The receiver would accept this ancient garbage as valid new data — corruption with no error message.
+2. **Security:** if ISN always = 0, an attacker can **guess/predict** the numbers and inject fake data into the connection (sequence-number prediction attack).
+3. **Solution in practice:** each side picks a **random, unpredictable ISN** AND waits in **TIME_WAIT** (about 2× the Maximum Segment Lifetime) so old duplicates die off before the numbers can be reused. Classic rule: the ISN advances with a timer (~every 4 µs), making it unpredictable.
 
 Takeaway line: *"A non-zero, unpredictable ISN + TIME_WAIT prevents a stale segment from being mistaken for new data, and defeats sequence-number guessing."*
 
-**Part B — TCP state-transition diagram (draw this, it is the single most-asked diagram):**
+**Part B — TCP state-transition diagram (draw this — the single most-asked diagram):**
 
 ```
            active open
@@ -128,10 +129,12 @@ Takeaway line: *"A non-zero, unpredictable ISN + TIME_WAIT prevents a stale segm
 ```
 
 **The 11 states (brief):** `CLOSED`, `LISTEN`, `SYN_SENT`, `SYN_RCVD`, `ESTABLISHED`, `FIN_WAIT_1`, `FIN_WAIT_2`, `CLOSE_WAIT`, `LAST_ACK`, `TIME_WAIT`, `CLOSING`.
-- Server: `CLOSED → LISTEN → SYN_RCVD → ESTABLISHED → CLOSE_WAIT → LAST_ACK → CLOSED`.
-- Client: `CLOSED → SYN_SENT → ESTABLISHED → FIN_WAIT_1 → FIN_WAIT_2 → TIME_WAIT → CLOSED`.
 
-**Which marks come from which:** drawing the state diagram is worth most (it is proof of understanding). Then write one sentence per key state showing *which side* is in it and *what event* moves it.
+**Two easy "journeys" to memorise:**
+- **Server path:** `CLOSED → LISTEN → SYN_RCVD → ESTABLISHED → CLOSE_WAIT → LAST_ACK → CLOSED`
+- **Client path:** `CLOSED → SYN_SENT → ESTABLISHED → FIN_WAIT_1 → FIN_WAIT_2 → TIME_WAIT → CLOSED`
+
+**Where the marks come from:** drawing the state diagram is worth the most (proof of understanding). Then add one sentence per key state — *which side* is in it and *what event* moves it out.
 
 ---
 **Marking scheme (7 marks):** ISN part = **3** (problem, TIME_WAIT, security), state diagram = **3**, one sentence per key state = **1**.
@@ -139,13 +142,14 @@ Takeaway line: *"A non-zero, unpredictable ISN + TIME_WAIT prevents a stale segm
 ---
 
 ### Q4 🟡★ What is a socket? What are the types of sockets? (asked: NCIT 2025 Q2 — differentiate TCP vs UDP socket)
-A **socket** is the **programming endpoint** of a two-way communication link — a **combination of IP address + port number** used to uniquely identify the end of a connection. It is the interface an application uses to send/receive data over the network.
 
-**Types of sockets:**
-1. **Stream socket (SOCK_STREAM)** → uses **TCP** — connection-oriented, reliable, ordered **byte stream** (no message boundaries).
-2. **Datagram socket (SOCK_DGRAM)** → uses **UDP** — connectionless, unreliable, preserves **message (datagram) boundaries**.
-3. **Raw socket (SOCK_RAW)** → direct access to **IP packets** (build your own headers) — for low-level tools like `ping`, packet sniffers, routing protocols.
-4. (Unix also has **sequenced-packet** sockets `SOCK_SEQPACKET` — reliable, ordered *messages*; used with SCTP/Unix domain.)
+**Plain meaning:** a socket is the **doorway your program uses to talk over the network** — a combination of an **IP address + port number** that uniquely identifies "this program on this machine". When an application wants to send or receive data, it uses a socket.
+
+**Types of sockets (three main ones):**
+1. **Stream socket (`SOCK_STREAM`)** → uses **TCP** — enters a connection first, reliable, ordered **byte stream** (a continuous flow, no "message" boundaries).
+2. **Datagram socket (`SOCK_DGRAM`)** → uses **UDP** — no connection, unreliable, but keeps each **message (datagram)** separate and whole.
+3. **Raw socket (`SOCK_RAW`)** → bypasses the protocols and gives **direct access to raw IP packets** (you build your own headers) — for low-level tools like `ping`, packet sniffers, routing protocols.
+4. (Unix also has **sequenced-packet** sockets `SOCK_SEQPACKET` — reliable, ordered *messages*; used with SCTP/Unix-domain sockets.)
 
 **TCP socket vs UDP socket (asked directly):**
 
@@ -154,12 +158,12 @@ A **socket** is the **programming endpoint** of a two-way communication link —
 | Type constant | `SOCK_STREAM` | `SOCK_DGRAM` |
 | Connection | must `connect` first | connectionless |
 | Reliable | yes (ack/retransmit) | no |
-| Ordering | byte stream (no boundaries) | preserves datagram boundaries |
+| Ordering | byte stream (no boundaries) | keeps datagram boundaries |
 | Server calls | `bind → listen → accept` | `bind → recvfrom` only (no listen/accept) |
 | Client send | `send`/`write` | `sendto` |
-| Data recv | `recv`/`read` (stream, may be partial) | `recvfrom` (one whole datagram) |
+| Data recv | `recv`/`read` (may come in partial pieces) | `recvfrom` (gets one whole datagram) |
 
-**How a socket is created (both):** `socket(family, type, protocol)` e.g. `socket(AF_INET, SOCK_STREAM, 0)`.
+**How a socket is created (same for both):** `socket(family, type, protocol)` e.g. `socket(AF_INET, SOCK_STREAM, 0)`.
 
 ---
 **Marking scheme (6–8 marks):** definition of socket = **2**, three socket types = **3**, TCP-vs-UDP table = **3**.
@@ -167,7 +171,8 @@ A **socket** is the **programming endpoint** of a two-way communication link —
 ---
 
 ### Q5 🟢 What is IPC? List the evolution of UNIX IPC mechanisms.
-**IPC (Interprocess Communication)** = the mechanisms that let **two or more processes exchange data** and synchronize with each other. Since processes have **separate address spaces**, they need a common channel (file, kernel object, or shared memory) to talk.
+
+**Plain meaning:** **IPC (InterProcess Communication)** = the ways two (or more) **processes exchange data and coordinate** with each other. Each process has its own private memory, so they need a *common channel* — a file, a kernel object, or shared memory — to talk.
 
 **Evolution (timeline):**
 ```
@@ -175,15 +180,15 @@ Pipes ─▶ Named pipes (FIFOs) ─▶ System V message queues ─▶ POSIX msg
                                                                          ─▶ Sockets/Networks
 ```
 
-**Each in one line:**
-1. **Pipes** — unidirectional byte stream, parent↔child only, no name.
-2. **FIFOs (named pipes)** — same but have a pathname, so unrelated processes can open them.
-3. **System V message queues** — kernel-managed, message-addressed, key-based.
-4. **POSIX message queues** — modern replacement, namespaced (`/mq`).
-5. **RPC / sockets** — let processes on *different* machines communicate (the basis of network programming).
-6. **Shared memory** — fastest (no kernel copy) but needs synchronization (semaphores).
+**Each in one line (how they improved over time):**
+1. **Pipes** — a one-way byte stream, **parent↔child only**, no name.
+2. **FIFOs (named pipes)** — same idea but with a **pathname**, so *unrelated* processes can open them.
+3. **System V message queues** — kernel-managed, **message-addressed** (send whole messages by key).
+4. **POSIX message queues** — the modern replacement, namespaced (`/mq`).
+5. **RPC / sockets** — let processes on *different machines* communicate (the basis of this whole course).
+6. **Shared memory** — the fastest (no kernel copy) but must be synchronised with semaphores.
 
-**Why this matters for a network course:** most IPC is *local* (same machine); **sockets** extend IPC to *remote* machines — which is exactly what network programming (this course) is about.
+**Why this matters for a network course:** most IPC is *local* (same machine); **sockets carry IPC to remote machines** — which is exactly what network programming is about.
 
 ---
 **Marking scheme (4–5 marks):** definition = **1**, correct chronological list = **2**, one line per mechanism = **2**.
@@ -191,13 +196,14 @@ Pipes ─▶ Named pipes (FIFOs) ─▶ System V message queues ─▶ POSIX msg
 ---
 
 ### Q6 🟢 What are the three ways two UNIX processes can share info?
-UNIX provides exactly **three** classes of info-sharing between processes:
 
-1. **Through a shared file** in the filesystem — both processes read/write the same file through the kernel. Simple but needs **synchronization** (locking) and is **slow** (disk I/O).
-2. **Through the kernel** — pipes, FIFOs, message queues, semaphores. Each operation is a **system call** into the kernel which holds/stores the data. Needs synchronization (esp. for semaphores).
-3. **Through shared memory** — both map the **same physical memory** into their address space. **Fastest** (no kernel copy per access) but **must synchronize** manually (semaphores/mutexes) and has no kernel mediation.
+**Plain meaning:** two running programs can't "see" each other's memory, so UNIX gives exactly **three** channels they can share information through:
 
-**Why three and not one:** each is a speed-vs-simplicity trade-off — files are easiest but slowest; shared memory fastest but most error-prone; kernel objects are the middle ground.
+1. **Through a shared file** in the filesystem — both processes read/write the same file (the kernel handles it). Simple, but needs **locking** to avoid conflicts and is **slow** (disk I/O).
+2. **Through the kernel** — pipes, FIFOs, message queues, semaphores. Every operation is a **system call**; the kernel stores and hands over the data. Needs synchronisation (especially semaphores).
+3. **Through shared memory** — both processes map the **same physical memory** into their own address space. **Fastest** (no kernel copying every time) but **most error-prone** — you must synchronise manually (semaphores/mutexes) and there's no kernel safety net.
+
+**Why three and not one:** it's a **speed-vs-simplicity trade-off**. Files = easiest but slowest; shared memory = fastest but you must be careful; kernel objects = the balanced middle ground.
 
 ---
 **Marking scheme (4–5 marks):** each way = **1**, plus **1–2** for the trade-off/why-all-three explanation.
@@ -205,9 +211,10 @@ UNIX provides exactly **three** classes of info-sharing between processes:
 ---
 
 ### Q7 🟡★ Define the port number ranges & socket pair.
-A **port number** is a 16-bit value (0–65535) that identifies a specific application on a host, letting many applications share one IP.
 
-**The three ranges:**
+**Plain meaning:** a **port number** is a 16-bit number (0–65535) that tags "which application on this machine". Many apps can share one IP because each has a different port.
+
+**The three ranges (memorise):**
 
 | Range | Name | Notes / examples |
 |---|---|---|
@@ -215,12 +222,12 @@ A **port number** is a 16-bit value (0–65535) that identifies a specific appli
 | **1024–49151** | **Registered** | Applications register these with IANA; e.g. 1433 SQL Server, 3306 MySQL |
 | **49152–65535** | **Dynamic / private (ephemeral)** | Auto-assigned by the OS to clients for the **local** end of a connection |
 
-**Socket pair (TCP):** a TCP connection is uniquely identified by the **4-tuple**:
+**Socket pair (TCP):** one TCP connection is uniquely identified by **four values** — the 4-tuple:
 ```
 (local IP, local port, foreign IP, foreign port)
 ```
-- **local IP & port** = your side, **foreign IP & port** = the peer side.
-- The **socket pair** is what allows two hosts to run many simultaneous connections (they all differ in at least one of the four values).
+- **local** = your side, **foreign** = the peer's side.
+- This lets two hosts run *many* simultaneous connections — each differs in at least one of the four values.
 - Compare: one *socket* = (local IP, local port); the *socket pair* = the full 4-tuple.
 
 ---
@@ -229,7 +236,9 @@ A **port number** is a 16-bit value (0–65535) that identifies a specific appli
 ---
 
 ### Q8 🟡★ How is a TCP connection terminated? Why is TIME_WAIT needed?
-**Graceful close uses four segments** — a full-duplex FIN/ACK exchange (each direction closes independently):
+
+**Plain meaning:** closing a TCP connection is a **polite two-way farewell** — each side says "I'm done sending" separately, and both must acknowledge. This normally takes **four packets** (a FIN/ACK exchange for each direction):
+
 ```
 A ── FIN ──▶ B      (A says: I have no more data to send)
 A ◀── ACK ── B      (B acknowledges A's FIN)
@@ -237,13 +246,13 @@ A ◀── FIN ── B      (B also finishes its side)
 A ── ACK ──▶ B      (A acknowledges B's FIN)  → connection fully closed
 ```
 
-**Who does what:** the side that calls `close()` first initiates the FIN; both directions are closed independently, so a connection can be **half-closed** (one side done sending, still receiving).
+**Who starts it:** the side that calls `close()` first sends the FIN. Because the two directions close independently, a connection can be **half-closed** — one side done sending while still receiving.
 
-**Why TIME_WAIT is needed (lasts 2×MSL, Max Segment Lifetime — typically ~2 minutes):**
-1. **Reliable full-duplex close** — if the **final ACK is lost**, the peer will re-transmit its FIN; TIME_WAIT lets the closing side re-send the ACK. Without it, the peer would be stuck in LAST_ACK.
-2. **Let old duplicate segments expire** — a delayed packet from *this* connection could linger in the network. TIME_WAIT holds the 4-tuple long enough (2×MSL) that any duplicate either arrives (and is ignored) or dies, so it **cannot contaminate a new connection** that reuses the same local IP/port.
+**Why TIME_WAIT is needed (it lasts 2×MSL — twice the Maximum Segment Lifetime, roughly 2 minutes):**
+1. **Reliable close:** if the **final ACK is lost**, the peer will re-send its FIN; TIME_WAIT lets the closing side re-send the ACK. Without it, the peer would be stuck in LAST_ACK forever.
+2. **Let old duplicates die:** a delayed packet from *this* connection could still be floating in the network. TIME_WAIT holds the 4-tuple long enough (2×MSL) that any duplicate either arrives (and is ignored) or expires — so it **cannot contaminate a new connection** that reuses the same local IP/port.
 
-**Trade-off:** TIME_WAIT is why a server restarting sometimes gets **"address already in use"** — solved by `SO_REUSEADDR`.
+**Trade-off (common exam point):** TIME_WAIT is why a server restarting sometimes gets **"address already in use"** — fixed with `SO_REUSEADDR`.
 
 ---
 **Marking scheme (5–6 marks):** 4-segment diagram = **2**, half-close idea = **1**, the two TIME_WAIT reasons = **2–3**.
@@ -252,24 +261,25 @@ A ── ACK ──▶ B      (A acknowledges B's FIN)  → connection fully clo
 ## Unit 2 — Unix Basics
 
 ### Q9 🔴★ Explain value-result arguments in socket programming. Why are they needed? (asked: NCIT 2025 Q3a, Gandaki 2025 Q2b)
-A **value-result argument** is an argument that is used **two ways**: its *value* is read on input (to pass info to the kernel), and the kernel *writes a result back* into the same variable before returning — so after the call the variable holds new data.
 
-**Two directions of length passing in socket calls:**
-- **Process → kernel** (`bind`, `connect`, `sendto`): you pass the size **by value** — the kernel only *reads* it to know how many bytes to copy from the caller's buffer.
-- **Kernel → process** (`accept`, `recvfrom`, `getsockname`, `getpeername`): you pass a **pointer to the size** (`socklen_t *`). On input the *value* tells the kernel the buffer's size (so it never writes past the end); on output the kernel *updates* it to the actual number of bytes it stored. This is the **value-result** pattern.
+**Plain meaning:** a **value-result argument** is one variable that does *two* jobs: your program puts a **value in** (to tell the kernel something), the kernel does its work, then **writes a new value back** into the same variable. Like filling a form, handing it over, and getting it back with the "official size" stamped on it.
+
+**Two directions of length passing in socket calls (key idea):**
+- **Process → kernel** (`bind`, `connect`, `sendto`): your program *supplies* the address, so it just passes the size **by value** — the kernel only *reads* it to know how many bytes to copy.
+- **Kernel → process** (`accept`, `recvfrom`, `getsockname`, `getpeername`): the *kernel produces* the address, so you pass a **pointer to the size** (`socklen_t *`). On input the *value* tells the kernel how big your buffer is (so it never overflows); on output the kernel *updates* it to the actual size it stored. **This two-way use is the value-result pattern.**
 
 ```c
 struct sockaddr_in cli;
-socklen_t len = sizeof(cli);          /* value: how big my buffer is */
+socklen_t len = sizeof(cli);          /* value: "my buffer is this big" */
 int cfd = accept(listenfd, (SA*)&cli, &len);  /* kernel returns real size in len → result */
-printf("peer stored %d bytes in cli\n", len); /* now len = actual length */
+printf("peer stored %d bytes in cli\n", len); /* now len = the actual length used */
 ```
 
 **Why value-result is needed:**
-1. **Safety vs overflow:** the kernel must know the buffer size or it could overwrite memory (buffer overflow).
-2. **Variable data size:** different address families have different lengths (IPv4 = 16 B, IPv6 = 28 B). The caller sets input size; the kernel reports the actual size on output, so the caller can tell which family was received.
+1. **Safety (no overflow):** the kernel must know your buffer's size, or it could write past the end of your memory.
+2. **Variable sizes:** address families have different lengths (IPv4 = 16 B, IPv6 = 28 B). You give the input size, the kernel reports the real output size — so after `accept` you can tell *which family* actually connected.
 
-**Common mistake:** passing `&len` uninitialized — the kernel reads garbage → undefined/unpredictable behaviour. Always set `len = sizeof(buffer)` first.
+**Common mistake (worth a mark):** passing `&len` **uninitialised** — the kernel reads garbage → unpredictable behaviour. Always set `len = sizeof(buffer)` first.
 
 ---
 **Marking scheme (8 marks):** definition = **2**, two directions table = **2**, code with value+result explained = **2**, why-needed = **2**.
@@ -277,18 +287,19 @@ printf("peer stored %d bytes in cli\n", len); /* now len = actual length */
 ---
 
 ### Q10 🔴★ Ways to pass the length of a socket structure — with function prototypes. (asked: NCIT 2025 Q2a)
-There are exactly **two** ways to pass a socket-address length, matching the two groups of callers above.
 
-**Group 1 — length passed BY VALUE (process → kernel, one-way):**
+**Plain meaning:** there are exactly **two** styles for passing the length of a socket address, and they match the two groups from Q9: **by value** (when you give the kernel an address) and **by reference / value-result** (when the kernel gives you an address back).
+
+**Group 1 — length passed BY VALUE (you supply the address, one-way):**
 ```c
 int bind(int socket, const struct sockaddr *address, socklen_t address_len);
 int connect(int socket, const struct sockaddr *address, socklen_t address_len);
 ssize_t sendto(int socket, const void *buffer, size_t length, int flags,
                const struct sockaddr *dest_addr, socklen_t dest_len);
 ```
-Here `address_len` is a plain value the kernel reads (tells it how many bytes of `address` to copy).
+Here `address_len` is a plain value the kernel reads (it tells the kernel how many bytes of `address` to copy). No write-back.
 
-**Group 2 — length passed BY REFERENCE, value-result (kernel → process, two-way):**
+**Group 2 — length passed BY REFERENCE / value-result (kernel produces the address, two-way):**
 ```c
 int accept(int socket, struct sockaddr *address, socklen_t *address_len);
 ssize_t recvfrom(int socket, void *buffer, size_t length, int flags,
@@ -296,13 +307,13 @@ ssize_t recvfrom(int socket, void *buffer, size_t length, int flags,
 int getsockname(int socket, struct sockaddr *address, socklen_t *address_len);
 int getpeername(int socket, struct sockaddr *address, socklen_t *address_len);
 ```
-In group 2, `address_len` is a **pointer (`&len`)**. The caller must set `*address_len` to the buffer size *before* the call; the kernel writes back the **actual** size after. That is value-result.
+In group 2, `address_len` is a **pointer (`&len`)**. You set `*address_len` to the buffer size *before* the call; the kernel writes back the **actual** size after. That is value-result.
 
-**How to remember which group:**
-- If the *kernel produces* the address (accept/recvfrom/getsockname/getpeername) → the length is **value-result** (pointer).
-- If the *we supply* the address (bind/connect/sendto) → the length is **by value**.
+**How to remember which group (the one-line rule):**
+- If the **kernel produces** the address (accept/recvfrom/getsockname/getpeername) → length is **value-result (pointer)**.
+- If **you supply** the address (bind/connect/sendto) → length is **by value**.
 
-**Common exam trap:** forgetting to initialise `*address_len` before an `accept`/`recvfrom` call → garbage length → overflow or wrong data. Always do `socklen_t len = sizeof(addr);`.
+**Common exam trap:** forgetting to initialise `*address_len` before `accept`/`recvfrom` → garbage length → overflow or wrong data. Always do `socklen_t len = sizeof(addr);`.
 
 ---
 **Marking scheme (8 marks):** stating the two ways = **2**, correct prototypes for each group = **4** (2 each), how-to-remember rule = **1**, common trap = **1**.
@@ -311,7 +322,7 @@ In group 2, `address_len` is a **pointer (`&len`)**. The caller must set `*addre
 
 ### Q11 🔴★ Explain the socket address structures (sockaddr, sockaddr_in, sockaddr_in6, sockaddr_storage). (asked: NCIT 2025 Q2b, Gandaki 2025 Q2a/Q2b)
 
-**What they are:** socket address structures hold the **family** (AF_INET/AF_INET6/AF_UNIX) + **port** + **address** of an endpoint, and are passed to every socket call.
+**Plain meaning:** a socket address structure is a small C structure that holds "who to talk to" — the **family** (IPv4 / IPv6 / Unix), the **port**, and the **address**. You fill it, then hand it to every socket call.
 
 | Structure | Family | Size | Key fields | Purpose |
 |---|---|---|---|---|
@@ -320,24 +331,24 @@ In group 2, `address_len` is a **pointer (`&len`)**. The caller must set `*addre
 | `struct sockaddr_in6` | AF_INET6 | 28 B | `sin6_family`, `sin6_port`, `sin6_flowinfo`, `sin6_addr`, `sin6_scope_id` | IPv6 addresses |
 | `struct sockaddr_storage` | generic | ≥128 B | opaque; aligned for any family | can hold **any** family safely |
 
-**Field-by-field (sockaddr_in):**
+**Field by field (`sockaddr_in`, the IPv4 one):**
 - `sin_family` — always `AF_INET` (2 bytes).
 - `sin_port` — 16-bit port in **network byte order** → set with `htons()`.
 - `sin_addr.s_addr` — 32-bit IPv4 address in **network byte order** → set with `htonl()` or `inet_pton()`.
-- `sin_zero[8]` — padding to match `sockaddr` size; you must **zero** it (usually `bzero()` the whole struct).
+- `sin_zero[8]` — padding to make the size match the generic `sockaddr`; you must **zero** it (usually `bzero()` the whole struct). Ignore it — it's just filler.
 
 **Why every call takes `struct sockaddr *`:**
-All socket functions take a **generic pointer** `(const struct sockaddr *)`. You *declare* a concrete struct (`sockaddr_in`) but *cast* it to `(struct sockaddr *)` when calling `bind/connect/accept`. This is the classic **polymorphism via casting** trick in C:
+All socket functions accept a **generic pointer** `(const struct sockaddr *)`. You *declare* a concrete struct (`sockaddr_in`) but *cast* it to `(struct sockaddr *)` when calling `bind`/`connect`/`accept`. This is C's trick for "polymorphism": one generic pointer that actually points to a family-specific struct.
 ```c
 struct sockaddr_in serv;
 bind(sockfd, (struct sockaddr *)&serv, sizeof(serv));
 ```
 
-**Why `sockaddr_storage` is significant (asked):**
+**Why `sockaddr_storage` matters (asked):**
 - It is **big enough (≥128 B)** to hold the **largest** socket-address type the system supports (IPv4 *or* IPv6).
-- It has the **strictest alignment**, so you can declare it, pass it to `accept`/`recvfrom`, and inspect `ss_family` afterwards to learn which family actually arrived — safely, without knowing it in advance. This is how you write **family-neutral** servers.
+- It has the **strictest alignment**, so you can safely declare it, pass it to `accept`/`recvfrom`, and afterwards inspect `ss_family` to learn which family actually arrived. This is how you write **family-neutral** servers (they work with IPv4 and IPv6 without knowing in advance).
 
-**Important field-naming note:** the generic struct's fields are `sa_family`, `sa_data`; the IPv4 struct's are `sin_*`; the IPv6 struct's are `sin6_*`; storage's is `ss_family`. Don't confuse them.
+**Naming note (common mix-up):** generic = `sa_*`, IPv4 = `sin_*`, IPv6 = `sin6_*`, storage = `ss_family`. Don't confuse them.
 
 ---
 **Marking scheme (8 marks):** table of 4 structs = **4**, one-field explanation (sockaddr_in) = **1**, generic-pointer casting = **1**, sockaddr_storage significance = **2**.
@@ -346,12 +357,14 @@ bind(sockfd, (struct sockaddr *)&serv, sizeof(serv));
 
 ### Q12 🔴★ Byte ordering & manipulation functions. (asked: NCIT 2025 Q2a)
 
-**Problem:** different CPUs store multi-byte integers differently:
+**Plain meaning:** computers can store numbers "right-way-round" or "back-to-front". If two machines disagree on which, a port number sent by one will be read wrongly by the other. TCP/IP solved this by declaring **one worldwide standard** — *network byte order* — and giving you little conversion helpers so you never have to think about it.
+
+**The problem (two memory layouts):**
 - **Big-endian:** most-significant byte first (e.g. `0x1234` → `12 34`).
 - **Little-endian** (Intel): least-significant byte first (`0x1234` → `34 12`).
-- TCP/IP protocols mandate **network byte order = big-endian**. If we sent raw host values, a little-endian machine and a big-endian machine would read the port/address differently.
+- TCP/IP protocols mandate **network byte order = big-endian**. Without converting, a little-endian machine and a big-endian machine would read the same port/address differently.
 
-**Solution — the four conversion functions:**
+**The solution — four conversion functions (memorise):**
 ```c
 uint16_t htons(uint16_t hostshort);  /* Host → Network, Short (16-bit, ports)  */
 uint32_t htonl(uint32_t hostlong);   /* Host → Network, Long  (32-bit, addresses) */
@@ -360,12 +373,12 @@ uint32_t ntohl(uint32_t netlong);    /* Network → Host, Long  */
 ```
 - `htons`/`htonl` **before sending** (build `sin_port` with `htons(...)`, `sin_addr.s_addr` with `htonl(...)` or `inet_pton`).
 - `ntohs`/`ntohl` **after receiving** (read `sin_port`, `sin_addr`).
-- On a big-endian machine these are no-ops; on a little-endian machine they byte-swap — so **always use them**, never assume.
+- On a big-endian machine these do nothing; on a little-endian (Intel) machine they byte-swap — so **always use them, never assume**.
 
-**Manipulation functions** — for binary data (not C strings):
-- BSD: `bzero(ptr, n)`, `bcopy(src,dst,n)`, `bcmp(...)`.
-- ANSI (modern, preferred): `memset(ptr, 0, n)`, `memcpy(dst,src,n)`, `memcmp(a,b,n)`.
-- Use them to **zero/initialise** address structures (e.g. `bzero(&serv, sizeof(serv))` or `memset(&serv, 0, sizeof(serv))`) before filling the fields — this clears `sin_zero` padding and prevents leaving uninitialised data.
+**Manipulation functions** — for raw binary data (not C strings):
+- BSD (old): `bzero(ptr, n)`, `bcopy(src,dst,n)`, `bcmp(...)`.
+- ANSI/modern (preferred): `memset(ptr, 0, n)`, `memcpy(dst,src,n)`, `memcmp(a,b,n)`.
+- Use them to **zero/initialise** address structures (e.g. `bzero(&serv, sizeof(serv))` or `memset(&serv, 0, sizeof(serv))`) before filling fields — this clears the `sin_zero` padding and prevents uninitialised bytes from leaking into your data.
 
 ---
 **Marking scheme (8 marks):** endianness concept = **2**, four functions = **2**, when to apply each = **2**, manipulation functions = **2**.
@@ -373,15 +386,16 @@ uint32_t ntohl(uint32_t netlong);    /* Network → Host, Long  */
 ---
 
 ### Q13 🟡★ inet_aton / inet_addr / inet_ntoa / inet_pton / inet_ntop.
-These convert between **presentation format** (a human dotted string like `"192.168.1.1"`) and **numeric binary** form (the 32-bit value stored in `sin_addr`).
 
-- **`inet_aton("1.2.3.4", &addr)`** — ASCII → binary. Returns non-zero on success, 0 on failure. **Preferred** for IPv4 (better error reporting). `addr` is a `struct in_addr`.
-- **`inet_addr("1.2.3.4")`** — like `inet_aton` but returns the address **by value** (`in_addr_t`); returns `INADDR_NONE` on error. **Problem:** `255.255.255.255` also equals `INADDR_NONE`, so it can't be distinguished from an error — avoid it.
-- **`inet_ntoa(addr)`** — binary → ASCII string (returns pointer to a **static** buffer). **Not thread-safe** (overwritten by next call). Deprecated by POSIX.
-- **`inet_pton(family, src, dst)`** — **presentation → numeric for BOTH IPv4 and IPv6** (`AF_INET` or `AF_INET6`). Returns 1 on success, 0 (invalid) or -1 (bad family).
-- **`inet_ntop(family, src, dst, size)`** — **numeric → presentation for BOTH IPv4 and IPv6**, into a caller-supplied buffer. Thread-safe and preferred.
+**Plain meaning:** your program deals with IP addresses in two forms: the **human form** everyone types (`"192.168.1.1"`) and the **machine form** stored in the struct (4 bytes of binary). These five functions convert between the two. Think of them as translators.
 
-**Recommendation (modern):** use `inet_pton`/`inet_ntop` — they handle IPv4 *and* IPv6, are thread-safe, and give clean error codes. `inet_aton` is fine for IPv4-only code; avoid `inet_addr` and prefer not to use `inet_ntoa`.
+- **`inet_aton("1.2.3.4", &addr)`** — human → machine (IPv4). Returns non-zero on success, 0 on failure. **Preferred** for IPv4 (gives a proper error signal). `addr` is a `struct in_addr`.
+- **`inet_addr("1.2.3.4")`** — the same idea but returns the address **by value** (`in_addr_t`); returns `INADDR_NONE` on error. **Problem:** the valid address `255.255.255.255` also equals `INADDR_NONE`, so you cannot tell "error" from "a real address" — avoid it.
+- **`inet_ntoa(addr)`** — machine → human (returns a pointer to a **static** buffer). **Not thread-safe** (the next call overwrites the buffer). Deprecated by POSIX.
+- **`inet_pton(family, src, dst)`** — **human → machine for BOTH IPv4 AND IPv6** (`AF_INET` or `AF_INET6`). Returns 1 on success, 0 if the address is invalid, -1 if the family is wrong.
+- **`inet_ntop(family, src, dst, size)`** — **machine → human for BOTH IPv4 AND IPv6**, into a buffer you provide. Thread-safe and preferred.
+
+**Recommendation (modern):** use `inet_pton`/`inet_ntop` — they handle both families, are thread-safe, and give clean error codes. `inet_aton` is fine for IPv4-only code; avoid `inet_addr` and prefer not to use `inet_ntoa`.
 
 ---
 **Marking scheme (6 marks):** purpose (two-way conversion) = **2**, each function's job = **2**, modern recommendation/limits = **2**.
@@ -389,6 +403,8 @@ These convert between **presentation format** (a human dotted string like `"192.
 ---
 
 ### Q14 🔴★ Write the TCP server & client system-call sequence. (asked multiple times)
+
+**Plain meaning:** this is the exact *order of function calls* a TCP program makes. There is one set for the **server** (which waits for calls) and one for the **client** (which dials out). Memorise both sequences, then each call's one-line job.
 
 **Server (passive open):**
 ```
@@ -399,12 +415,12 @@ socket() → bind() → listen() → accept() → read()/write() → close()
 socket() → connect() → read()/write() → close()     (bind optional)
 ```
 
-**What each call does:**
-- `socket(family,type,proto)` — create the endpoint.
-- `bind(sock, &addr, len)` — **server**: attach a specific IP/port to the socket (client *may* skip this).
-- `listen(sock, backlog)` — **server only**: mark as passive, allow incoming connections (backlog = pending queue size).
-- `accept(sock, &cli, &len)` — **server only**: block until a client connects, then return a **new** connected socket for that client.
-- `connect(sock, &addr, len)` — **client only**: initiate the connection.
+**What each call does (one line each):**
+- `socket(family,type,proto)` — create the endpoint (the doorway).
+- `bind(sock, &addr, len)` — **server**: attach a specific IP/port to the socket (a client *may* skip this).
+- `listen(sock, backlog)` — **server only**: mark the socket as ready to accept; incoming connections wait in a queue of size `backlog`.
+- `accept(sock, &cli, &len)` — **server only**: block until a client connects, then return a **new** connected socket just for that client.
+- `connect(sock, &addr, len)` — **client only**: dial the server and start a connection.
 - `read()/write()` or `send()/recv()` — exchange data.
 - `close(sock)` — release the socket; also `shutdown()` for a graceful half-close.
 
@@ -418,7 +434,7 @@ accept() ◀── 3-way handshake ─────── connect()
 close()                                 close()
 ```
 
-**Gotchas:** the server blocks in `accept` until a client arrives; `accept` returns a *new* fd (the listener is kept for more connections); a real server loops `accept → fork/thread` to serve many clients.
+**Gotchas (worth marks):** the server blocks in `accept` until a client arrives; `accept` returns a *new* fd (the original listener is kept for more connections); a real server loops `accept → fork/thread` to serve many clients at once.
 
 ---
 **Marking scheme (8 marks):** correct server sequence = **2**, client sequence = **2**, diagram with both sides = **2**, one-line job of each call = **2**.
@@ -426,18 +442,19 @@ close()                                 close()
 ---
 
 ### Q15 🔴 What happens if you call bind() in a TCP client? (asked: NCIT 2025 Q3b)
-A TCP client normally does **NOT** call `bind()`. When the client calls `connect()`, the kernel automatically assigns a free **ephemeral port** and uses the local machine's address as the source — this is called an **implicit bind**.
+
+**Plain meaning:** a TCP client normally **does NOT call `bind()`**. When the client calls `connect()`, the kernel quietly picks a free **ephemeral port** for you and uses your machine's address as the source — a built-in, automatic "bind" (called an **implicit bind**).
 
 **If you DO call `bind()` in a client:**
 - You force a **specific local IP/port** as the source instead of the automatic ephemeral one.
 - If that port is **already in use**, `bind()` fails with **`EADDRINUSE`**.
-- Binds to a specific source IP so traffic leaves via a **particular interface**.
-- It is only needed in special cases, e.g. an **FTP active mode** client that must report to the server: "connect back to me on port 20000" — the client must bind to 20000 first.
+- Binding to a specific source IP forces traffic to leave via a **particular interface/network card**.
+- It is only needed in special cases — e.g. an **FTP active-mode** client that must tell the server: "connect back to me on port 20000" (the client binds to 20000 first).
 
 **Also asked (send/recv in UDP, sendto/recvfrom in TCP):**
-- **TCP** normally uses `write()`/`read()` or `send()`/`recv()` — the connection already identifies both ends, so no per-datagram address is needed.
-- **UDP** uses `sendto()`/`recvfrom()` because each datagram may have a **different peer** — you must specify (or learn) the peer address on *every* datagram.
-- Technically you *could* use `sendto`/`recvfrom` on a connected TCP socket (the address is ignored), but it is unnecessary and confusing.
+- **TCP** normally uses `write()`/`read()` or `send()`/`recv()` — the connection already identifies both ends, so you don't repeat the address on every call.
+- **UDP** uses `sendto()`/`recvfrom()` because each datagram may go to / come from a **different peer** — you must name (or learn) the peer address on *every* datagram.
+- Technically you *could* use `sendto`/`recvfrom` on a connected TCP socket (the address would be ignored), but it is unnecessary and confusing.
 
 ---
 **Marking scheme (6 marks):** why client skips bind (ephemeral) = **2**, consequences of explicit bind + EADDRINUSE = **2**, TCP-vs-UDP send functions = **2**.
@@ -445,13 +462,14 @@ A TCP client normally does **NOT** call `bind()`. When the client calls `connect
 ---
 
 ### Q16 🟡★ What is a daemon? How do you daemonize a process in UNIX? (asked: NCIT 2025 Q4a)
-A **daemon** is a **long-running background process** that:
-- has **no controlling terminal** (cannot read from keyboard),
-- usually **runs with special privileges** (may need to bind to well-known ports),
-- **starts at boot / login** and runs until shutdown,
-- writes output to a **log file or syslog** (not the screen).
 
-Examples: `sshd`, `httpd`, `syslogd`, `crond`.
+**Plain meaning:** a **daemon** is a background program that **runs forever without anyone logged in** — it has no terminal, no keyboard, and usually high privileges. Examples: `sshd`, `httpd`, `syslogd`, `crond`. (Think "server process that lives in the background".)
+
+A daemon typically:
+- has **no controlling terminal** (cannot read from the keyboard),
+- usually **runs with special privileges** (may need to bind to well-known ports),
+- **starts at boot/login** and runs until shutdown,
+- writes output to a **log file or syslog** (not the screen).
 
 **To daemonize (standard steps + code):**
 ```c
@@ -462,12 +480,12 @@ umask(0);          /* 4. clear file-mode mask so files aren't too restrictive */
 /* 5. redirect stdin/stdout/stderr to /dev/null */
 ```
 
-**Why each step:**
-1. **`fork()`** — so the child is not a session leader (required for `setsid` to work); parent exits immediately so the shell prompt returns.
-2. **`setsid()`** — creates a **new session**; the process has no controlling terminal. If this succeeds, the process is a **session leader** with no tty.
-3. **`chdir("/")`** — avoid keeping a busy/locked filesystem as the current directory.
-4. **`umask(0)`** — ensures the daemon can create files with full intended permissions.
-5. **Redirection** — `open("/dev/null"); dup2(0,1); dup2(0,2);` sends stdin/stdout/stderr to the null device so no terminal interaction is possible and no stray output appears.
+**Why each step (understand, don't just memorise):**
+1. **`fork()`** — spawns a child, then the parent exits immediately so the shell prompt returns. (Also makes the child non-session-leader, required for `setsid` to work.)
+2. **`setsid()`** — creates a **new session**; the process now has **no controlling terminal** (no keyboard, no screen).
+3. **`chdir("/")`** — moves to the root directory so the daemon doesn't keep a busy/locked filesystem as its current directory.
+4. **`umask(0)`** — clears the file-permission mask so files the daemon creates can have the full intended permissions.
+5. **Redirection** — `open("/dev/null"); dup2(0,1); dup2(0,2);` sends stdin/stdout/stderr to the "null device", so no terminal interaction is possible and no stray output appears.
 
 **Optional but common:** a **second `fork()`** (double-fork) so the daemon is *not* a session leader and can never re-acquire a controlling terminal.
 
@@ -485,12 +503,13 @@ open("/dev/null"); dup2(0,1); dup2(0,2);  /* 5 */
 ---
 
 ### Q17 🟡★ signal() and sigaction(), and signal handling in UNIX. (asked: Gandaki 2025 Q3a)
-**Signals** are **asynchronous notifications** that tell a process an event happened (SIGINT = Ctrl-C, SIGIO, SIGCHLD, SIGTERM, SIGHUP). A process can **ignore, default-handle, or catch** a signal with a handler function `void handler(int)`.
 
-**`signal(signum, handler)`** — simple but **not portable/robust**:
-- Behavior differs across UNIX variants.
-- It may **reset the handler to default** after catching once (BSD fixes this).
-- Does not let you **block other signals** during handling.
+**Plain meaning:** **signals are the kernel's way of tapping your process on the shoulder** to say "this happened!" (SIGINT = Ctrl-C, SIGIO = socket ready, SIGCHLD = a child died, SIGTERM = please quit). You can **ignore** it, take the **default** action, or **catch** it by providing your own handler function `void handler(int)`.
+
+**`signal(signum, handler)`** — the old, simple version, but **not portable/robust**:
+- Behaviour differs across UNIX variants.
+- It may **reset the handler to default** after catching once (BSD fixed this, others not).
+- You cannot **block other signals** while your handler runs.
 
 **`sigaction(signum, &act, &old)`** — the **modern, powerful, recommended** form:
 ```c
@@ -500,15 +519,15 @@ sigemptyset(&act.sa_mask);        /* which signals to block during handler */
 act.sa_flags = SA_RESTART;        /* auto-restart interrupted syscalls */
 sigaction(SIGIO, &act, NULL);
 ```
-Advantages over `signal`:
-- **`sa_flags`** — e.g. `SA_RESTART` auto-restarts a syscall interrupted by the signal (avoids `EINTR` errors).
-- **`sa_mask`** — block other signals **while this handler runs** (prevents re-entrant races).
+Why it is better than `signal`:
+- **`sa_flags`** — e.g. `SA_RESTART` auto-restarts a system call interrupted by the signal (avoids annoying `EINTR` errors).
+- **`sa_mask`** — blocks other signals **while this handler runs** (prevents re-entrant races).
 - **Portable** behaviour across all UNIX systems.
 
-**Why it matters in network programming:**
-- **`SIGIO`** — signals "socket is ready" → basis of **signal-driven I/O**.
-- **`SIGCHLD`** — sent to parent when a child exits → used to **reap zombies** in a fork-based server (`waitpid` in the handler).
-- **`EINTR`** — an interrupted `accept`/`read` returns -1 with `errno == EINTR`; either loop-and-retry or use `SA_RESTART`.
+**Why it matters in network programming (three network uses):**
+- **`SIGIO`** — signals "socket is ready" → the foundation of **signal-driven I/O**.
+- **`SIGCHLD`** — sent to the parent when a child exits → used to **reap zombies** in a fork-based server (`waitpid` in the handler).
+- **`EINTR`** — an interrupted `accept`/`read` returns -1 with `errno == EINTR`; you either loop-and-retry or use `SA_RESTART`.
 
 ---
 **Marking scheme (7 marks):** what signals are = **1**, signal() form = **1**, sigaction() form = **2**, why sigaction better = **2**, network-programming uses = **1**.
@@ -517,10 +536,12 @@ Advantages over `signal`:
 
 ### Q18 🟡★ fork() and exec() — creating processes. (asked: NCIT 2025 Q4a)
 
-**`fork()`** — creates a new **child process** that is an **exact copy** of the parent:
-- Child gets its **own PID**; both run the *same* code from the point of `fork` onwards.
-- Return values: **0** in the child, **child's PID** in the parent, **-1** on failure.
-- Used after `accept()` so **each client gets its own server process**.
+**Plain meaning:** `fork` **copies your running program** into a second process; `exec` **replaces** a process with a totally different program. Together they let a server run a new copy of itself for each client, or launch other programs (like a shell).
+
+**`fork()`** — creates a **child process** that is an **exact copy** of the parent:
+- The child gets its **own PID**; both run the *same* code from the point of `fork` onwards.
+- Return values: **0** in the child, the **child's PID** in the parent, **-1** on failure.
+- Used right after `accept()` so **each client gets its own server process**.
 
 ```c
 pid_t pid = fork();
@@ -532,19 +553,19 @@ if (pid == 0) {           /* child */
 }
 ```
 
-**`exec()`** — **replaces the current process image** with an entirely new program and runs it from its entry point:
-- On success it **never returns**; the PID stays the same, the code/data/stack are new.
-- Variants: `execl`, `execlp`, `execle`, `execv`, `execvp`, `execve` — differ in how args and the environment are passed.
+**`exec()`** — **replaces the current process image** with a brand-new program and runs it from its entry point:
+- On success it **never returns**; the PID stays the same, but the code/data/stack are completely new.
+- Variants: `execl`, `execlp`, `execle`, `execv`, `execvp`, `execve` — they differ in how arguments and environment are passed.
 
 **How they combine (classic pattern):**
 ```c
-fork();   /* create a child that is a copy of parent */
-exec();   /* in the child, replace with a new program (e.g. /bin/ls) */
+fork();   /* (a) create a child that is a copy of the parent */
+exec();   /* (b) in the child, replace it with a new program (e.g. /bin/ls) */
 ```
 - **fork + exec together = run a *different* program.** `fork` gives you the *process*, `exec` gives you the *program*.
-- In a network server: `fork()` after `accept` to service many clients in parallel; a client may then `exec()` a shell to let the user issue commands (`telnet`-style).
+- In a network server: `fork()` after `accept` services many clients in parallel; a client may then `exec()` a shell to let the user type commands (the `telnet` model).
 
-**Zombies:** if a child exits and the parent doesn't `wait()`/`waitpid()` on it, it stays as a **zombie** (dead but still in the process table). A server must handle `SIGCHLD` and `waitpid` to **reap** children, else it leaks resources.
+**Zombies:** if a child exits and the parent never `wait()`s/`waitpid()`s on it, the child stays as a **zombie** (dead but still in the process table). A server must handle `SIGCHLD` and call `waitpid` to **reap** children, or it leaks resources.
 
 ---
 **Marking scheme (6–7 marks):** fork() = **2**, exec() = **2**, fork+exec pattern and use in servers = **2**, zombies = **1**.
@@ -552,24 +573,25 @@ exec();   /* in the child, replace with a new program (e.g. /bin/ls) */
 ---
 
 ### Q19 🟢★ UNIX domain sockets & socketpair. (asked: short note)
-**UNIX domain sockets (`AF_UNIX` / `AF_LOCAL`)** are the network-programming model adapted for **same-host IPC** — two processes on the *same* machine communicate using socket API, but **no network stack / IP** is involved (addresses are **pathnames** in the filesystem, e.g. `"/tmp/foo.sock"`).
+
+**Plain meaning:** UNIX domain sockets are **sockets for *local* communication only** — two processes on the *same* machine talk using the socket API, but with **no IP and no network** involved. Instead of an IP address, the "address" is a **pathname** in the filesystem, e.g. `"/tmp/foo.sock"`.
 
 **Features:**
 - **Faster** than TCP/IP on the same host (no protocol headers, no routing, kernel-internal copy).
-- Supports **stream (`SOCK_STREAM`)**, **datagram (`SOCK_DGRAM`)**, and **sequenced-packet** forms (the last preserves message boundaries and is reliable).
-- Can **pass file descriptors** between processes via `sendmsg()`/`recvmsg()` (with a `SCM_RIGHTS` control message) — the receiver gets a *new* fd referring to the same open file. This is used by `X Window`, systemd, and daemons.
+- Supports **stream (`SOCK_STREAM`)**, **datagram (`SOCK_DGRAM`)**, and **sequenced-packet** forms (the last keeps message boundaries and is reliable).
+- Can **pass file descriptors** between processes via `sendmsg()`/`recvmsg()` (with a `SCM_RIGHTS` control message) — the receiver gets a *new* fd referring to the same open file. Used by X Window, systemd, and daemons.
 - Used widely: `X11`, `PostgreSQL` (local connections), `systemd`, Docker socket.
 
-**`socketpair()`** — creates **two connected sockets at once**, already linked to each other:
+**`socketpair()`** — makes **two connected sockets at once**, already linked to each other:
 ```c
 int fds[2];
 socketpair(AF_UNIX, SOCK_STREAM, 0, fds);
 /* fds[0] and fds[1] are connected; write on fds[0], read on fds[1] */
 ```
-- Gives a **bidirectional** pipe (like an fd-pair but connection-oriented) — handy for **parent↔child** IPC without a filesystem path.
+- Gives a **bidirectional** pipe (two-way, unlike a normal one-way pipe) — handy for **parent↔child** IPC without needing a filesystem path.
 - Faster/cleaner than a named socket for two related processes.
 
-**vs TCP loopback:** don't use TCP (`AF_INET` 127.0.0.1) for same-host IPC when you can use a Unix socket — the latter avoids port conflicts, routing, and firewall overhead.
+**vs TCP loopback:** for same-host IPC, prefer a Unix socket over TCP (`AF_INET` 127.0.0.1) — it avoids port conflicts, routing, and firewall overhead.
 
 ---
 **Marking scheme (5–6 marks):** what it is (pathname, same-host) = **2**, stream/datagram forms = **1**, fd passing = **1**, socketpair = **1–2**.
@@ -577,7 +599,8 @@ socketpair(AF_UNIX, SOCK_STREAM, 0, fds);
 ---
 
 ### Q19b 🟡 Hostname & service name resolution (gethostbyname / getservbyname / getaddrinfo).
-Computers communicate with **IP addresses and port numbers**, but humans (and programs) use **names** (hostnames, service names). **Name resolution** converts between them.
+
+**Plain meaning:** machines talk in **IP addresses and port numbers**, but humans use **names** ("google.com", "http"). **Name resolution** is the translation in between — handing a name to the system and getting back the numbers the network understands.
 
 **`gethostbyname(name)`** → returns `struct hostent *` for a hostname:
 ```c
@@ -603,8 +626,8 @@ Reads the system **`services` database** (`/etc/services`).
 **`getservbyport(port, proto)`** → the **reverse**: port number → service name.
 
 **Modern alternative — `getaddrinfo()` (preferred):**
-- One function gets name + service and returns a **linked list of `struct addrinfo`**, each already filled with a usable `sockaddr` for **IPv4 or IPv6** (`AF_UNSPEC` lets the system pick).
-- **Thread-safe**, family-neutral, and is the canonical new API (used by the `getaddrinfo` examples in Stevens).
+- One call gets name + service and returns a **linked list of `struct addrinfo`**, each already filled with a usable `sockaddr` for **IPv4 or IPv6** (pass `AF_UNSPEC` to let the system pick).
+- **Thread-safe**, family-neutral, and the canonical new API.
 
 ```c
 struct addrinfo hints, *res;
@@ -616,7 +639,7 @@ getaddrinfo("www.example.com", "http", &hints, &res);
 freeaddrinfo(res);
 ```
 
-**Which to use:** for new code always `getaddrinfo` (IPv6-ready, thread-safe). Know `gethostbyname` because it is still in old textbooks/exams, but state its limits.
+**Which to use:** for new code always `getaddrinfo` (IPv6-ready, thread-safe). Know `gethostbyname` because it still appears in old textbooks/exams, but state its limits when asked.
 
 ---
 **Marking scheme (7 marks):** what resolution is = **1**, gethostbyname + hostent = **2**, getservbyname = **1**, getaddrinfo = **2**, limits/recommendation = **1**.
@@ -625,11 +648,12 @@ freeaddrinfo(res);
 ## Unit 3 — Advanced Unix
 
 ### Q20 🔴★ The five I/O models; which are synchronous? (asked: Gandaki 2025 Q4a)
-Every network read involves **two phases**:
+
+**Plain meaning:** when your program `recv`s data, two things must happen: the kernel waits for a packet to arrive, then copies it into your buffer. The five I/O models differ only in **what your program is doing while it waits** — sleeping, asking again and again, or doing something else entirely.
+
+**The two phases of every network read:**
 1. **Wait for data to be ready** — the kernel waits for a packet to arrive (from the network card).
 2. **Copy data from kernel to process** — once ready, the kernel copies data into the user's buffer (never instant, even with zero-copy tricks).
-
-The five I/O models differ in *what the process does* during these two phases:
 
 | # | Model | Phase 1 (wait) | Phase 2 (copy) | Blocking? |
 |---|---|---|---|---|
@@ -639,10 +663,10 @@ The five I/O models differ in *what the process does* during these two phases:
 | 4 | **Signal-driven I/O** (`SIGIO`) | Kernel **sends SIGIO** when fd ready (process runs handler) | Process does `recvfrom` (kernel copies) | Yes — recvfrom blocks |
 | 5 | **Asynchronous I/O** (`aio_read`, POSIX AIO) | Kernel waits for data | Kernel **copies + notifies process** (via signal/callback) | **No** — fully async |
 
-**Which are synchronous?**
-A POSIX "synchronous" I/O operation is one that **blocks the process until the operation itself completes**. Models 1–4 are all **synchronous**: the actual `recvfrom()` call **blocks** until data is copied. Only model **5 (asynchronous I/O)** is truly asynchronous — the process is never blocked waiting for data, because the *kernel does everything* and notifies you later.
+**Which are synchronous? (the tricky part)**
+A "synchronous" operation is one that **blocks the process until the whole operation completes**. Models 1–4 are all **synchronous** — in each of them the actual `recvfrom()` call **blocks** until the data is copied. Only model **5 (asynchronous I/O)** is truly asynchronous — the process is *never* blocked waiting for data, because the kernel does everything and notifies you later.
 
-**Which to use for many clients:** models 3 or 4 are the standard server models. Model 5 (POSIX AIO) exists on paper but the real-world server winner is **model 3 (select/poll/epoll)** because it is portable, mature, and allows multiplexing thousands of sockets.
+**Which to use for many clients:** models 3 or 4 are the standard server models. Model 5 (POSIX AIO) exists on paper, but the real-world server winner is **model 3 (select/poll/epoll)** — portable, mature, and lets one process watch thousands of sockets.
 
 **Diagram (the single most valuable thing to draw):**
 ```
@@ -662,25 +686,26 @@ Model 5: [Kernel does everything]───────────────�
 
 ### Q21 🟡★ Blocking vs Non-blocking I/O. (asked: Gandaki 2025 Q4a)
 
+**Plain meaning:** when no data has arrived yet, what does your `recv` do? **Blocking** I/O says *"I'll just sleep until data comes"*. **Non-blocking** I/O says *"Check now — if nothing's there, return and let me do something else"*.
+
 **Blocking I/O (`SOCK_STREAM` default):**
-- The `recvfrom()` call **sleeps** until data arrives AND is copied into the user buffer. The process does nothing — it simply stops until the kernel has data ready.
+- The `recvfrom()` call **sleeps** until data arrives AND is copied into your buffer. The process does nothing until then.
 - **Advantage:** simplest code, no polling logic.
-- **Disadvantage:** **ties up the thread entirely** — one thread can only handle *one* client at a time. A server using blocking I/O needs a thread per client (or `fork`) — scales poorly.
-- Example: `read(fd, buf, n)` on a blocking socket returns `n` bytes read, or 0 if the peer closed, or -1 on error. Never returns with "no data yet" — that can't happen.
+- **Disadvantage:** **ties up the thread entirely** — one thread handles *one* client at a time. A blocking server needs a thread per client (or `fork`) — scales poorly.
+- Example: `read(fd, buf, n)` on a blocking socket returns `n` bytes read, or 0 if the peer closed, or -1 on error. It never returns "no data yet" — that just cannot happen.
 
 **Non-blocking I/O (`O_NONBLOCK` or `FIONBIO`):**
 - Set the socket non-blocking: `fcntl(fd, F_SETFL, O_NONBLOCK)`.
-- Now `recvfrom()` **returns immediately** — if data is not ready, it returns **-1** with `errno = EWOULDBLOCK` (or `EAGAIN`). If data *is* ready, it copies and returns the count.
-- **Advantage:** the process can work on other things between polls.
-- **Disadvantage:** you must **poll repeatedly** (busy-wait) until data arrives → **wastes CPU**. A server polling thousands of sockets in a tight loop burns 100% CPU doing nothing useful.
+- Now `recvfrom()` **returns immediately** — if data isn't ready, it returns **-1** with `errno = EWOULDBLOCK` (or `EAGAIN`). If data *is* ready, it copies and returns the count.
+- **Advantage:** the process can work on other things between attempts.
+- **Disadvantage:** you must **poll repeatedly** (busy-wait) until data arrives → **wastes CPU**. Polling thousands of sockets in a tight loop burns 100% CPU doing nothing useful.
 
-**The solution — combine with `select()`:**
-The real reason non-blocking sockets exist is **not** to poll manually — it is to use them **with `select`/`poll`**. `select` blocks efficiently until *one or more* sockets are ready, then you do non-blocking reads on the ready ones. This gives you the best of both worlds:
+**The real reason non-blocking exists — combine it with `select()`:**
+Non-blocking sockets are *not* meant for manual polling. Their true purpose is to be used **with `select`/`poll`**: `select` blocks efficiently until *one or more* sockets are ready, then you do a non-blocking read on the ready ones. Best of both worlds:
 - `select` tells you which sockets are ready (efficient, no busy-wait).
-- Non-blocking read on each ready socket returns immediately with data (or an unexpected `EWOULDBLOCK` if you got the readiness wrong — a "spurious readiness").
+- Non-blocking read on each ready socket returns immediately with data (or an unexpected `EWOULDBLOCK` if readiness was wrong — a "spurious readiness").
 
 **Summary table:**
-
 | | Blocking | Non-blocking |
 |---|---|---|
 | `recv` when no data | Blocks (sleeps) | Returns `EWOULDBLOCK` |
@@ -696,11 +721,13 @@ The real reason non-blocking sockets exist is **not** to poll manually — it is
 
 ### Q22 🔴★ Explain signal-driven I/O, compare with I/O multiplexing. (asked: Gandaki 2025 Q4a, NCIT 2025 alternative)
 
+**Plain meaning:** both models solve the same problem — "how does my program know when a socket has data?" **Signal-driven** = the kernel *interrupts you* with a signal ("data's here!"). **Multiplexing** = you sit and *wait* at a guard post (`select`) until the guard tells you which sockets are ready.
+
 **Signal-driven I/O:**
-- The process enables the socket for `SIGIO`, installs a signal handler using `sigaction`, and goes about its business.
-- When a **datagram arrives** (data is now ready in the kernel), the kernel sends **SIGIO** to the process. The **signal handler** runs `recvfrom()` to read the data.
-- This is like an **interrupt model** — the kernel *tells you* when I/O is ready rather than you asking.
-- Real implementation (Linux): uses `F_SETOWN` + `F_SETFL` with `O_ASYNC`:
+- Your process enables the socket for `SIGIO`, installs a signal handler with `sigaction`, and goes about its business.
+- When a **datagram arrives** (data ready in the kernel), the kernel sends **SIGIO** to your process. The **signal handler** then runs `recvfrom()` to read the data.
+- This is an **interrupt model** — the kernel *tells you* when data is ready, instead of you asking.
+- Real Linux implementation: uses `F_SETOWN` + `F_SETFL` with `O_ASYNC`:
   ```c
   int flags = 1;
   ioctl(fd, FIOASYNC, &flags);        /* enable async */
@@ -709,9 +736,9 @@ The real reason non-blocking sockets exist is **not** to poll manually — it is
   ```
 
 **I/O Multiplexing (select/poll):**
-- The process calls `select()` or `poll()` with a set of file descriptors. It **blocks** inside `select` until one or more fds are ready.
-- Then the process does `recvfrom` on each ready fd (this `recv` returns immediately since data is there).
-- No signals involved; it is purely a **blocking loop**:
+- Your process calls `select()` or `poll()` with a set of file descriptors. It **blocks** inside `select` until one or more fds are ready.
+- Then you do `recvfrom` on each ready fd (this `recv` returns immediately since data is there).
+- No signals involved — it is purely a **blocking waiting loop**:
   ```c
   for (;;) {
       FD_SET(...);
@@ -722,7 +749,6 @@ The real reason non-blocking sockets exist is **not** to poll manually — it is
   ```
 
 **Head-to-head comparison:**
-
 | Feature | Signal-driven I/O | I/O Multiplexing (select) |
 |---|---|---|
 | Notification mechanism | **Kernel sends SIGIO** | **select() returns** ready set |
@@ -735,9 +761,9 @@ The real reason non-blocking sockets exist is **not** to poll manually — it is
 **Why `select` is generally preferred:**
 - With signal-driven I/O, if many signals fire simultaneously, the kernel may **merge/miss** them (signals are not queued on standard UNIX) — you don't know which fd was actually ready.
 - `select()` clearly returns a **set** of all ready fds at once — much more reliable.
-- However, signal-driven I/O has **lower latency** when data arrives and the process is sleeping — you don't have to be blocked in `select` to learn about it.
+- However, signal-driven I/O has **lower latency** when data arrives while the process is sleeping — you don't have to be blocked in `select` to learn about it.
 
-**Both are synchronous:** in both cases, the actual `recvfrom()` call in the handler or after select **blocks** (synchronously copies data). Neither is asynchronous (model 5).
+**Both are synchronous:** in both cases, the actual `recvfrom()` call (in the handler or after select) **blocks** while data is copied. Neither is *asynchronous* (model 5).
 
 ---
 **Marking scheme (8 marks):** signal-driven explanation = **2**, select explanation = **2**, comparison table = **2**, which preferred/why = **1**, both-synchronous note = **1**.
@@ -745,7 +771,8 @@ The real reason non-blocking sockets exist is **not** to poll manually — it is
 ---
 
 ### Q23 🔴★ I/O multiplexing & select(). (asked: NCIT 2025 Q4b)
-**I/O multiplexing** means one process can watch **many** file descriptors (sockets, stdin, etc.) simultaneously and be told which ones are ready for reading/writing, using a **single blocking call**.
+
+**Plain meaning:** `select` lets **one process watch many sockets at once** and sleep until *any* of them is ready — instead of asking each socket "are you ready?" over and over. Like a hotel receptionist who takes a nap and wakes up only when a guest rings any bell.
 
 **`select()` prototype:**
 ```c
@@ -754,12 +781,12 @@ int select(int maxfdp1, fd_set *readset, fd_set *writeset,
 // returns: number of ready fds, 0 on timeout, -1 on error
 ```
 
-**Parameters explained:**
-- `maxfdp1` — one more than the **highest-numbered** fd you are watching (e.g. if fds are 0, 3, 5 → pass 6).
-- `readset` — set of fds to watch for **read readiness** (data available, peer closed, or listening socket with pending connection).
-- `writeset` — set of fds to watch for **write readiness** (buffer space available to write without blocking).
-- `exceptset` — set of fds to watch for **exceptional conditions** (e.g. out-of-band TCP data).
-- `timeout` — how long to wait: `NULL` = wait forever; `tv.tv_sec=5, tv.tv_usec=0` = wait 5 seconds; zero = poll (return immediately).
+**Parameters explained (one line each):**
+- `maxfdp1` — one more than the **highest-numbered** fd you're watching (e.g. fds 0, 3, 5 → pass 6).
+- `readset` — the fds you're watching for **read readiness** (data arrived, peer closed, or a listening socket has a pending connection).
+- `writeset` — the fds you're watching for **write readiness** (enough buffer space to send without blocking).
+- `exceptset` — the fds you're watching for **exceptional conditions** (e.g. out-of-band TCP data).
+- `timeout` — how long to wait: `NULL` = wait forever; `5 sec` = wait 5 seconds; zero = return immediately (poll).
 
 **Macros (all operate on `fd_set`):**
 ```c
@@ -789,15 +816,15 @@ for (;;) {
 ```
 
 **Use cases:**
-- A **single-threaded client** watching both **stdin** and its **socket** simultaneously (e.g. a telnet client).
-- A **single-threaded server** handling many sockets in one thread (simple chat server).
-- Combine with non-blocking sockets: do non-blocking reads on ready fds to avoid a single read blocking the whole select.
+- A **single-threaded client** watching both **stdin** and its **socket** at once (e.g. a telnet client).
+- A **single-threaded server** handling many sockets in one thread (a simple chat server).
+- Combined with non-blocking sockets: do non-blocking reads on ready fds so a single slow read never blocks the whole `select`.
 
 **Limits of select (and why `poll`/`epoll` exist):**
 - `fd_set` has a fixed maximum size (typically `FD_SETSIZE = 1024`).
 - It must be **re-initialized** before every `select` call (select overwrites it).
 - `maxfdp1` can be no larger than `FD_SETSIZE`.
-- For very large numbers of sockets, `poll` or Linux `epoll` is more scalable.
+- For very large numbers of sockets, `poll` or Linux `epoll` scales better.
 
 ---
 **Marking scheme (8 marks):** what multiplexing is = **1**, select prototype + params = **2**, macros = **1**, code pattern = **2**, use cases + limits = **2**.
@@ -805,12 +832,13 @@ for (;;) {
 ---
 
 ### Q24 🔴★ Mechanisms to handle multiple clients in UNIX — with code. (asked: Gandaki 2025 Q3b, NCIT 2025 Q5a)
-A server must handle **many clients simultaneously**. There are three standard approaches, each with a different concurrency model:
+
+**Plain meaning:** one server must serve *many clients at once*. There are three standard strategies: **give each client its own copy of the process** (fork), **check all sockets in one loop** (select), or **give each client its own thread**.
 
 **Approach 1 — `fork()` per client (process-per-connection):**
-- After `accept()`, the server `fork()`s a child process for each client. The child handles the client; the parent goes back to `accept()`.
+- After `accept()`, the server `fork()`s a child process for each client. The child handles that client; the parent goes back to `accept()`.
 - **Advantage:** simple, each client is isolated (one crash doesn't kill the server).
-- **Disadvantage:** one process per client uses lots of memory, does not scale well to thousands of clients.
+- **Disadvantage:** one process per client uses lots of memory — doesn't scale to thousands of clients.
 - Must **reap zombies** (`waitpid` in a `SIGCHLD` handler).
 
 ```c
@@ -828,25 +856,24 @@ for (;;) {
 ```
 
 **Approach 2 — `select()`/`poll` multiplexing (single-threaded, event-driven):**
-- One process/thread watches *all* sockets with `select()` or `poll()`. When data arrives on any socket, read it. No fork, no threads.
+- One process watches *all* sockets with `select()` or `poll()`. When data arrives on any socket, read it. No fork, no threads.
 - **Advantage:** low memory (one process), good for thousands of idle connections.
-- **Disadvantage:** complex code, one slow handler blocks everything.
+- **Disadvantage:** more complex code; one slow handler blocks everything.
 - **Add non-blocking sockets** so a read on a ready socket never blocks unexpectedly.
 
 **Approach 3 — threads (`pthread_create`) per client:**
-- Like fork, but lighter-weight: threads share the same address space (no `fork`/`exec` overhead, no zombie issues).
+- Like fork, but lighter-weight: threads **share the same address space** (no copying the whole process, no zombie issue).
 - **Advantage:** lighter than processes, good concurrency.
-- **Disadvantage:** shared memory → **race conditions**; need mutexes/locks. A thread crash can kill all threads.
+- **Disadvantage:** shared memory → **race conditions**; need mutexes/locks. One thread crash can kill all threads.
 
 **Comparison:**
-
 | Mechanism | Pros | Cons | Best for |
 |---|---|---|---|
 | fork() | Isolation, simple | Slow, zombie issues, 1-conn/memory | Small servers |
 | select() | Scalable, low memory | Complex, single-point-of-failure | Thousands of clients (chat, proxy) |
 | pthreads | Lightweight, shared memory | Race conditions, need locks | Moderate concurrency, shared data |
 
-**Code example (fork):** already shown above.
+**Code example (fork):** shown above.
 
 ---
 **Marking scheme (8 marks):** 3 approaches explained = **3**, code example = **2**, comparison table = **2**, zombies note = **1**.
@@ -854,22 +881,23 @@ for (;;) {
 ---
 
 ### Q25 🟡★ Broadcast vs multicast. (asked: NCIT 2025 Q4a)
-Both are one-to-many communication methods (send one packet, many hosts receive it), but differ in *scope* and *efficiency*:
+
+**Plain meaning:** both send **one packet to many receivers** (one-to-many). The difference is *how many* receivers: **broadcast shouts to everyone on your street**; **multicast only to people who joined your "club"**.
 
 **Broadcast (UDP only):**
 - Sends a datagram to **every host on the local subnet** (e.g. `255.255.255.255` = limited broadcast).
-- Must set `setsockopt(s, SOL_SOCKET, SO_BROADCAST, &on, sizeof(on))` — the socket must explicitly enable broadcast.
+- Must enable it: `setsockopt(s, SOL_SOCKET, SO_BROADCAST, &on, sizeof(on))` — the socket has to explicitly allow broadcast.
 - **Routers do NOT forward** broadcast packets → it is **local-subnet only**.
-- **Wastes resources:** every host on the subnet must process the packet even if it is not interested (CPU overhead, interrupt storms).
-- Use case: **network-wide discovery/announce** (e.g. finding a printer on the LAN, DHCP discovery).
+- **Wastes resources:** every host must process the packet even if it's not interested (CPU overhead, interrupt storms).
+- Use case: **network-wide discovery/announce** (finding a printer on the LAN, DHCP discovery).
 
 **Multicast:**
 - Sends to a **group of hosts** that have "subscribed" (joined) to a multicast group address.
 - **Group address:** Class D IP range `224.0.0.0` to `239.255.255.255`. A multicast address is like a "virtual club" — you join it, you receive its packets.
-- Hosts join a group by calling `setsockopt(s, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, ...)`. They can leave with `IP_DROP_MEMBERSHIP`.
-- `IP_MULTICAST_TTL` controls how far packets go (how many routers forward them).
-- **NIC hardware filtering:** network cards are programmed to receive only packets for their multicast group, so non-members never see the packet — **far more efficient** than broadcast.
-- Use case: **video conferencing**, streaming, live stock tickers, multiplayer games — any scenario where only *interested* hosts should receive the data.
+- Hosts join a group: `setsockopt(s, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, ...)`. They leave with `IP_DROP_MEMBERSHIP`.
+- `IP_MULTICAST_TTL` controls how far packets travel (how many routers forward them).
+- **NIC hardware filtering:** network cards accept only packets for their group, so non-members never see the packet — **far more efficient** than broadcast.
+- Use case: **video conferencing**, streaming, live stock tickers, multiplayer games — anywhere only *interested* hosts should receive the data.
 
 **Summary:**
 | Feature | Broadcast | Multicast |
@@ -887,7 +915,7 @@ Both are one-to-many communication methods (send one packet, many hosts receive 
 
 ### Q26 🟡★ Socket options: setsockopt / getsockopt + SO_REUSEADDR, SO_BROADCAST, SO_KEEPALIVE, SO_LINGER. (asked: NCIT 2025 Q5b, Gandaki 2025 Q4b)
 
-**`setsockopt` / `getsockopt`** get and set socket options at various protocol levels:
+**Plain meaning:** a socket is a kernel object with many **configuration switches**. `setsockopt`/`getsockopt` are how your program **flips those switches** (set) or **reads them** (get).
 
 ```c
 int setsockopt(int s, int level, int optname, const void *optval, socklen_t optlen);
@@ -895,32 +923,31 @@ int getsockopt(int s, int level, int optname, void *optval, socklen_t *optlen);
 ```
 - `level` — protocol layer: `SOL_SOCKET` (general), `IPPROTO_TCP`, `IPPROTO_IP`, `IPPROTO_IPV6`.
 - `optname` — the specific option to get/set.
-- `optval` — a pointer to the value (typically an `int`).
+- `optval` — a pointer to the value (usually an `int`).
 
-**The four key options:**
+**The four key options you must know:**
 
 **1. `SO_REUSEADDR` — reuse a local address/port:**
-- **Problem:** after a server closes, its address enters `TIME_WAIT` (2×MSL, ~2 minutes). If you restart immediately, `bind()` fails with `EADDRINUSE` — the port is still "in use" by old orphaned packets.
-- `SO_REUSEADDR` allows binding to an address even if it is in TIME_WAIT. It is **essential for servers** that restart frequently (HTTP servers, database servers).
+- **The problem:** after a server closes, its address sits in **TIME_WAIT** (2×MSL, ~2 minutes). Restart right away and `bind()` fails with `EADDRINUSE` — the port looks "still in use" because of old orphaned packets.
+- **The fix:** `SO_REUSEADDR` lets you bind even while the address is in TIME_WAIT. **Essential for servers that restart often** (HTTP servers, database servers).
 - Example: `setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));`
 
 **2. `SO_BROADCAST` — allow sending broadcast messages:**
-- **Problem:** by default, a socket **rejects** broadcast sends (`EACCES`).
-- Setting `SO_BROADCAST` allows `sendto()` to a broadcast address (e.g. `255.255.255.255`).
-- Used with UDP only; routers do not forward broadcast (local-subnet only).
-- Required before sending a broadcast; else you get `EACCES` on `sendto`.
+- **The problem:** by default, a socket **rejects** broadcast sends (`EACCES`).
+- **The fix:** setting `SO_BROADCAST` allows `sendto()` to a broadcast address.
+- UDP only; routers do not forward broadcast (local-subnet only). Required *before* sending; otherwise you get `EACCES`.
 
 **3. `SO_KEEPALIVE` — TCP keepalive probes:**
-- After **2 hours of inactivity** (no data sent), the OS sends a TCP keepalive **probe** to check if the peer is still alive.
-- If the peer responds with ACK → connection alive, reset the timer, wait another 2 hours.
-- If the peer has crashed → RST is received → `ECONNRESET`.
-- If no response → up to **8 probes**, **75 seconds apart** (~10 minutes) → `ETIMEDOUT` (or `EHOSTUNREACH` if ICMP unreachable).
+- After **2 hours of inactivity**, the OS sends a keepalive **probe** to check the peer is still alive.
+- Peer ACKs → connection alive, reset the timer, wait another 2 hours.
+- Peer crashed → RST received → `ECONNRESET`.
+- No response → up to **8 probes**, **75 seconds apart** (~10 minutes) → `ETIMEDOUT` (or `EHOSTUNREACH` if ICMP unreachable).
 - Useful for long-lived connections (SSH, database, VPN) to detect dead peers and free resources.
 - Timers are often tunable via system-wide `sysctl`.
 
-**4. `SO_LINGER` — control close() behaviour (see Q27 for full detail):**
+**4. `SO_LINGER` — control close() behaviour (full detail in Q27):**
 - Controls what `close()` does with unsent data.
-- Three modes: default (immediate return), abort (RST, discard data), linger (wait up to `l_linger` seconds for data to be acked).
+- Three modes: default (return immediately), abort (RST, discard data), linger (wait up to `l_linger` seconds for data to be acked).
 
 ---
 **Marking scheme (8 marks):** setsockopt/getsockopt = **2**, SO_REUSEADDR = **2**, SO_BROADCAST = **1**, SO_KEEPALIVE = **2**, SO_LINGER = **1**.
@@ -928,7 +955,10 @@ int getsockopt(int s, int level, int optname, void *optval, socklen_t *optlen);
 ---
 
 ### Q27 🟡 SO_LINGER in detail.
-`SO_LINGER` controls what happens to **unsent data** when a TCP socket is `close()`d. It is configured using:
+
+**Plain meaning:** what should happen to **data still waiting to be sent** when you `close()` a TCP socket? `SO_LINGER` gives you three choices: let the OS handle it quietly, wait for it to be delivered, or cancel everything with a hard reset.
+
+Configured with:
 ```c
 struct linger {
     int l_onoff;    /* 0 = off (default), non-zero = on */
@@ -937,7 +967,6 @@ struct linger {
 ```
 
 **Three modes:**
-
 | `l_onoff` | `l_linger` | Behaviour | Data |
 |---|---|---|---|
 | **0** (off) | any | `close()` **returns immediately**; OS sends data in background, silently discards if connection fails | Sent when possible |
@@ -946,12 +975,12 @@ struct linger {
 
 **When to use each:**
 1. **Default (on=0):** everyday programming — you don't want `close()` to block. The OS handles delivery in the background.
-2. **Linger with timeout (on=1, linger=5):** you **must** ensure data is delivered before the process exits — e.g. a database flush, a financial transaction. You are willing to wait 5 seconds for the peer to ACK.
-3. **Abort (on=1, linger=0):** you want to **terminate immediately** and discard unsent data — e.g. cancelling an operation, sending an error to the peer via RST.
+2. **Linger with timeout (on=1, linger=5):** you **must** ensure data is delivered before the process exits — a database flush, a financial transaction. You're willing to wait 5 seconds for the peer to ACK.
+3. **Abort (on=1, linger=0):** you want to **terminate immediately** and discard unsent data — cancelling an operation, deliberately sending an error via RST.
 
-**Common error:** setting linger without understanding it → calling `close()` on a socket with unsent data and long linger time can **block the process** for several seconds, which is catastrophic in a high-performance server.
+**Common error:** setting linger without understanding it — calling `close()` on a socket with unsent data and a long linger time can **block the process for several seconds**, which is catastrophic in a high-performance server.
 
-**Note on TCP RST:** when the linger timeout expires (or linger=0), the OS sends a TCP **RST** (reset) segment. This tells the peer to abort immediately. The peer sees `ECONNRESET` on its next read/write.
+**Note on TCP RST:** when the linger timeout expires (or linger=0), the OS sends a TCP **RST** (reset) segment — the peer must abort immediately and sees `ECONNRESET` on its next read/write.
 
 ---
 **Marking scheme (5–6 marks):** struct definition = **1**, three modes = **3**, when to use each = **1–2**.
@@ -959,17 +988,18 @@ struct linger {
 ---
 
 ### Q28 🟢 SO_KEEPALIVE in detail.
-`SO_KEEPALIVE` enables **TCP keepalive probes** — periodic "are you still alive?" messages sent on idle connections.
+
+**Plain meaning:** `SO_KEEPALIVE` makes the OS send a tiny **"are you still there?"** probe on idle connections, so dead peers get detected instead of the connection hanging around forever.
 
 **Default timers (Linux):**
 1. After **2 hours** of inactivity → send first keepalive **probe**.
 2. Peer ACK → connection alive, **reset 2-hour timer**.
 3. No ACK → wait **75 seconds**, send another probe. Repeat up to **8 times**.
-4. After 8 failed probes (~10 minutes total) → report **`ETIMEDOUT`** to the application, or **`EHOSTUNREACH`** if an ICMP unreachable was received.
+4. After 8 failed probes (~10 minutes total) → report **`ETIMEDOUT`**, or **`EHOSTUNREACH`** if an ICMP unreachable was received.
 
 **What the peer sees:**
-- The peer sees a **regular TCP segment** with `ACK` set and the **same sequence number** as the last data (a zero-length segment). If the peer is alive, it ACKs immediately.
-- If the peer has **crashed and rebooted**: it replies with `RST` → `ECONNRESET`.
+- The peer sees a **regular TCP segment** with `ACK` set and the **same sequence number** as the last data (a zero-length segment). If alive, it ACKs immediately.
+- If the peer **crashed and rebooted**: it replies with `RST` → `ECONNRESET`.
 - If the peer is **gone** (machine powered off): no response → 8 probes → timeout.
 
 **Why it matters:**
@@ -986,7 +1016,7 @@ sysctl -w net.ipv4.tcp_keepalive_probes=5   # 5 probes before giving up
 ```
 These system-wide settings apply to all sockets with `SO_KEEPALIVE` enabled.
 
-**Warning:** `SO_KEEPALIVE` adds a tiny overhead (one extra byte per probe) but can cause problems with NAT devices or firewalls that time out idle connections before the TCP keepalive timer fires — use shorter app-level heartbeats (ping/pong) in those cases.
+**Warning:** `SO_KEEPALIVE` adds a tiny overhead (one extra byte per probe), and NAT devices/firewalls may time out idle connections before the 2-hour TCP timer fires — use shorter app-level heartbeats (ping/pong) in those cases.
 
 ---
 **Marking scheme (4–5 marks):** what it is = **1**, timers = **1**, what peer sees = **1**, why-useful = **1**, tuning (bonus) = **1**.
@@ -994,7 +1024,8 @@ These system-wide settings apply to all sockets with `SO_KEEPALIVE` enabled.
 ---
 
 ### Q29 🟡★ Syslog & logging from network applications. (asked: NCIT 2025 Q4b — with block diagram)
-**Syslog** is a **centralised logging facility** on UNIX/Linux that lets daemons and network applications report errors, events, and status messages **without needing a terminal** (since daemons have no controlling terminal).
+
+**Plain meaning:** a daemon has no terminal to print to, so how does it report errors? **Syslog** is UNIX's central "message board" — any program can post messages to it, and the `syslogd` daemon writes them to the right log files (and optionally forwards them to other machines).
 
 **Architecture (block diagram — draw this):**
 ```
@@ -1020,12 +1051,12 @@ These system-wide settings apply to all sockets with `SO_KEEPALIVE` enabled.
               /dev/console (emergency)
 ```
 
-**Functions:**
-- `openlog(ident, options, facility)` — open the connection to syslog; `ident` is the program name, `facility` is the category (LOG_AUTH, LOG_DAEMON, LOG_LOCAL0-7, etc.).
-- `syslog(priority, format, ...)` — log a message; `priority` combines `facility | level` (LOG_ERR, LOG_WARNING, LOG_INFO, etc.).
+**The three functions:**
+- `openlog(ident, options, facility)` — open the connection to syslog; `ident` is your program's name, `facility` is the category (LOG_AUTH, LOG_DAEMON, LOG_LOCAL0-7, etc.).
+- `syslog(priority, format, ...)` — post a message; `priority` combines `facility | level` (LOG_ERR, LOG_WARNING, LOG_INFO, etc.).
 - `closelog()` — close the connection.
 
-**Priorities (from most to least severe):**
+**Priorities (most → least severe):**
 `LOG_EMERG` > `LOG_ALERT` > `LOG_CRIT` > `LOG_ERR` > `LOG_WARNING` > `LOG_NOTICE` > `LOG_INFO` > `LOG_DEBUG`
 
 **How it helps network applications:**
@@ -1033,7 +1064,7 @@ These system-wide settings apply to all sockets with `SO_KEEPALIVE` enabled.
 - `/etc/syslog.conf` controls where messages go (which file, which host) — no code change needed to redirect logs.
 - Centralised → one daemon collects logs from all processes; logs are **timestamped**, **facility-tagged**, and can be **rotated**.
 
-**Network option:** a client can send syslog messages to a **remote server** (UDP port 514) — so multiple machines share one log server, which is invaluable for distributed systems.
+**Network option:** a client can send syslog messages to a **remote server** (UDP port 514) — so multiple machines share one log server, invaluable for distributed systems.
 
 ---
 **Marking scheme (7 marks):** block diagram = **3**, openlog/syslog/closelog = **2**, priorities/facilities = **1**, why-network-daemons-need-syslog = **1**.
@@ -1041,21 +1072,22 @@ These system-wide settings apply to all sockets with `SO_KEEPALIVE` enabled.
 ---
 
 ### Q30 🟡★ How to secure a network application. (asked: short note "Wrapper function…")
-Securing a network application requires **layers** of protection — access control, authentication, and encryption. The question specifically asks about **by hostname, by IP number, and by wrapper program**:
+
+**Plain meaning:** securing a network app means keeping **unwanted clients out** (access control) and keeping **data safe while travelling** (encryption). The exam specifically wants the three access-control methods — **hostname, IP number, and wrapper program** — plus TLS.
 
 **1. By hostname/domain:**
-- Allow connections only from trusted **hostnames** — resolve the client's IP to a hostname using `gethostbyaddr()`, then check against an allow-list.
-- **Limitation:** DNS can be **spoofed** (attacker forges a DNS reply to match a trusted hostname) — this alone is weak. Use it as part of a layered defence, not as the only control.
+- Allow connections only from trusted **hostnames** — resolve the client's IP to a hostname with `gethostbyaddr()`, then check it against an allow-list.
+- **Limitation:** DNS can be **spoofed** (an attacker forges a DNS reply to match a trusted hostname) — this alone is weak. Use it as part of a layered defence, not alone.
 
 **2. By IP number:**
-- Restrict connections by source IP address using **`/etc/hosts.allow` + `/etc/etc.deny`** (TCP wrappers) or **firewall rules** (`iptables`, `nftables`, `pf`).
+- Restrict connections by source IP using **`/etc/hosts.allow` + `/etc/hosts.deny`** (TCP wrappers) or **firewall rules** (`iptables`, `nftables`, `pf`).
 - Simpler and stronger than hostname-only — IP spoofing is harder than DNS spoofing.
-- But: IPs can still be spoofed; a VPN or NAT makes IP-based control less reliable.
+- But: IPs can still be spoofed, and VPN/NAT make IP-based control less reliable.
 
-**3. Wrapper program (TCP wrappers concept):**
-- A **wrapper program** is a small front-end that intercepts the incoming connection *before* the real service starts.
-- It checks the client against a policy (hosts.allow/deny, custom rules) and **only if allowed**, it launches the real service and relays the connection to it.
-- This implements access control **without modifying the server application itself** — the server binary is unchanged; the wrapper does the gating.
+**3. Wrapper program (TCP wrappers concept — the exact short note):**
+- A **wrapper** is a small front-end that intercepts the incoming connection *before* the real service starts.
+- It checks the client against a policy (hosts.allow/deny, custom rules) and **only if allowed** launches the real service and relays the connection to it.
+- This adds access control **without modifying the server application** — the server binary stays untouched; the wrapper does the gating.
 - Classic example: `inetd` + TCP wrappers (`in.tcpd`) — `inetd` accepts the connection, runs `tcpd`, `tcpd` checks allow/deny, then runs the real `telnetd`, `ftpd`, etc.
 - **Modern equivalent:** systemd socket activation + firewall rules.
 
@@ -1065,11 +1097,12 @@ Securing a network application requires **layers** of protection — access cont
 - **Detects tampering** via message authentication codes (HMAC).
 - Without TLS, access control only restricts *who* can connect — data is still in the clear for eavesdropping and modification.
 
-**Best practice:** combine all layers — firewall/WTCP wrappers for access control + TLS for confidentiality/integrity. Access control gates connections; TLS protects data in transit.
+**Best practice:** combine all layers — firewall/TCP wrappers for access control **+** TLS for confidentiality/integrity. Access control gates the door; TLS protects the data.
 
 ---
 **Marking scheme (6–8 marks):** hostname = **2**, IP = **1**, wrapper program (concept + example) = **2**, TLS/SSL = **2**, best practice layering = **1**.
 
+---
 ## Unit 4 — Winsock Basics
 
 ### Q31 🔴★ How is Winsock different from UNIX sockets? + static vs dynamic linking. (asked: NCIT 2025 Q6a — 7 marks)
@@ -1475,38 +1508,38 @@ close_socket(s);    // a name that works on both
 
 ### Q43 🟡★ Name & describe network utilities. (asked: short notes — telnet, ipconfig/ifconfig, remote login, iperf, netstat)
 
-Network utilities are **command-line tools** that help diagnose, test, and understand network connectivity and performance. Each serves a specific purpose:
+**Plain meaning:** network utilities are **command-line tools** you run in a terminal to **test, diagnose, and see how the network is doing**. Each one answers a different practical question ("can I reach that machine?", "is my link fast enough?", "which ports are open?").
 
-**1. `ping` — ICMP reachability + round-trip time (RTT):**
+**1. `ping` — "Is that machine alive, and how fast?"** (ICMP, Layer 3)
 - Sends **ICMP Echo Request** packets to a target host and waits for **Echo Reply**.
-- Shows round-trip time (latency) in milliseconds, packet loss percentage, and TTL.
+- Shows **round-trip time (latency)** in milliseconds, packet-loss percentage, and TTL.
 - `ping -c 4 google.com` — send 4 pings.
-- Works at Layer 3 (IP); if `ping` works, IP connectivity exists.
+- If `ping` works, you have IP connectivity to that host. If it fails, the host is unreachable or blocking ICMP.
 
-**2. `telnet` — remote terminal login / TCP port tester:**
-- Connects to a remote host on a specified port (default 23) and gives a terminal shell.
-- **Modern use:** TCP port testing — `telnet host 80` sends data to port 80 and shows the response. Useful for testing HTTP, SMTP, SSH connectivity manually.
-- **Limitation:** sends everything (including passwords) in **cleartext** — replaced by SSH for remote login.
+**2. `telnet` — "Open a remote terminal / test a TCP port"** (TCP 23)
+- Connects to a remote host on a specified port (default 23) and gives you a terminal shell.
+- **Modern use:** TCP port testing — `telnet host 80` connects to port 80 and shows the response (great for testing HTTP, SMTP, SSH).
+- **Limitation:** sends *everything* (including passwords) in **cleartext** — replaced by SSH for real remote login.
 
-**3. `ip` / `ifconfig` — configure and inspect network interfaces:**
+**3. `ip` / `ifconfig` — "What does my network card know?"**
 - Shows/sets the IP address, netmask, MAC address, MTU, and interface status (up/down).
 - `ifconfig eth0` (older Linux) or `ip addr show` (modern Linux); `ipconfig` (Windows).
-- Used to troubleshoot: "is my interface even up? what IP do I have?"
+- Used to answer: "is my interface even up? what IP do I have?"
 
-**4. `iperf` — throughput and bandwidth measurement:**
-- **Client-server tool:** runs a server (`iperf -s`) and a client (`iperf -c server_ip`) to measure TCP/UDP throughput between two hosts.
+**4. `iperf` — "How fast can data actually flow?"**
+- **Client-server tool:** one machine runs the server (`iperf -s`), another runs the client (`iperf -c server_ip`) to measure real TCP/UDP **throughput/bandwidth** between them.
 - Reports bandwidth in Mbits/sec, jitter (for UDP), and packet loss.
-- Essential for testing network performance: "is the link actually delivering 100 Mbps?"
+- Essential for testing performance: "is the link actually delivering the 100 Mbps we paid for?"
 
-**5. `netstat` — connections, routing table, listening ports, interface stats:**
+**5. `netstat` — "What's connected right now?"**
 - `netstat -tlnp` — show all **TCP** ports in **listening** state (with PIDs).
 - `netstat -an` — show all established connections.
-- Shows routing table (`netstat -r`), interface statistics (`netstat -i`).
+- Also shows the routing table (`netstat -r`), interface statistics (`netstat -i`).
 - Replaced by `ss` on modern Linux (`ss -tlnp` is faster).
 
 **6. Remote login (`rlogin` / `ssh`):**
-- `rlogin` — the old UNIX remote terminal tool (insecure, port 513, cleartext).
-- `ssh` — **Secure Shell** (port 22) — encrypts all traffic (including passwords), authenticates via keys or passwords. The modern replacement for `rlogin`, `telnet`, and `rsh`.
+- `rlogin` — the old UNIX remote-terminal tool (insecure, cleartext, port 513).
+- `ssh` — **Secure Shell** (port 22) — **encrypts all traffic** (including passwords), authenticates via keys or passwords. The modern replacement for `rlogin`, `telnet` and `rsh`.
 - `ssh user@host` gives a secure terminal on the remote host.
 
 ---
@@ -1516,20 +1549,21 @@ Network utilities are **command-line tools** that help diagnose, test, and under
 
 ### Q44 🔴★ HTTP vs WebSocket + simple server. (asked: NCIT Q7b — 8 marks)
 
+**Plain meaning:** HTTP is like **asking questions one at a time** — you ask, the server answers, and that's it (the server can never talk to you unless you ask first). **WebSocket is a persistent phone line** — once connected, both sides can talk at any time, with almost no overhead. That's why live chat and games use WebSocket.
+
 **HTTP (Hypertext Transfer Protocol):**
-- **Request-response** model: the client sends a request; the server sends a response; then the connection is typically closed (or kept alive briefly for the next request).
-- **Half-duplex in practice:** the client talks first, then the server replies. The server **cannot** push data to the client unprompted.
-- **Higher overhead:** each request carries full HTTP headers (cookies, User-Agent, Accept, etc.) — even if the payload is small.
+- **Request–response model:** client sends a request; server sends a response; then the connection is typically closed (or kept alive briefly).
+- **Half-duplex in practice:** the client talks first, then the server replies. The server **cannot** push data unprompted.
+- **Higher overhead:** each request carries full HTTP headers (cookies, User-Agent, Accept...) even for a tiny payload.
 - **Stateless:** each request is independent; no built-in state between requests (use cookies/sessions for state).
 
 **WebSocket:**
 - **Full-duplex:** both client and server can send messages **at any time** — true two-way communication.
-- **Persistent:** a single TCP connection stays open for the duration of the session — no repeated connect/disconnect overhead.
-- **Lower overhead:** once the handshake is complete, WebSocket frames are tiny (2–14 bytes header vs hundreds of bytes for HTTP headers).
-- **Server push:** the server can send data to the client **without being asked** — essential for real-time applications.
+- **Persistent:** one TCP connection stays open for the whole session — no repeated connect/disconnect overhead.
+- **Lower overhead:** after the handshake, frames are tiny (2–14 byte headers vs hundreds of bytes of HTTP headers).
+- **Server push:** the server can send data to the client **without being asked** — essential for real-time apps.
 
-**Comparison table:**
-
+**Comparison table (write this):**
 | Feature | HTTP | WebSocket |
 |---|---|---|
 | Communication model | Request–response | **Full-duplex** |
@@ -1541,8 +1575,8 @@ Network utilities are **command-line tools** that help diagnose, test, and under
 
 **How a WebSocket connection is established (the handshake):**
 1. Client sends an HTTP request: `GET /chat HTTP/1.1` + `Upgrade: websocket` + `Sec-WebSocket-Key: <base64>`.
-2. Server replies: `HTTP/1.1 101 Switching Protocols` + `Upgrade: websocket` + `Sec-WebSocket-Accept: <SHA1 hash>`.
-3. After the 101 response, the connection is **upgraded to WebSocket** — both sides exchange frames, not HTTP requests.
+2. Server replies: `HTTP/1.1 101 Switching Protocols` + `Upgrade: websocket` + `Sec-WebSocket-Accept: <hash>`.
+3. After the `101` response, the connection is **upgraded to WebSocket** — both sides now exchange frames, not HTTP requests.
 
 **Simple WebSocket server (pseudo-code):**
 ```
@@ -1564,14 +1598,15 @@ loop {
 ---
 
 ### Q45 🟡★ What is gRPC? (short note)
-**gRPC** is a **high-performance, open-source RPC (Remote Procedure Call) framework** developed by Google, built on top of **HTTP/2** and using **Protocol Buffers** (protobuf) for binary serialization.
+
+**Plain meaning:** **gRPC** = "Remote Procedure Call, done fast". It lets your program **call a function on another machine** as if it were a local function, using **binary data** over the modern **HTTP/2** protocol. It's Google's high-performance, open-source RPC framework.
 
 **Key features:**
-- **Language-agnostic:** a Python client can call a C++ server seamlessly — code is generated from `.proto` service definitions.
+- **Language-agnostic:** a Python client can call a C++ server — code is *generated* from `.proto` service definitions.
 - **Four call models:** unary (one request, one response), server streaming, client streaming, **bidirectional streaming**.
-- **Binary serialization (Protocol Buffers):** much faster and smaller than JSON/XML. You define services and messages in a `.proto` file; the `protoc` compiler generates client/server stubs.
+- **Binary serialization (Protocol Buffers):** much faster and smaller than JSON/XML. Define services and messages in a `.proto` file; the `protoc` compiler generates client/server stubs.
 - **Built on HTTP/2:** multiplexed streams, header compression, TLS by default — fast and secure.
-- **Used in:** microservices, mobile↔backend communication, Kubernetes, Google Cloud.
+- **Used in:** microservices, mobile↔backend, Kubernetes, Google Cloud.
 
 **How gRPC works (brief):**
 1. Define the service in a `.proto` file:
@@ -1581,9 +1616,9 @@ loop {
    message HelloReply { string message = 1; }
    ```
 2. Generate code with `protoc` (generates stubs for client and server).
-3. Server implements the service; client calls the generated stub → transparent RPC.
+3. Server implements the service; client calls the generated stub → a transparent RPC over HTTP/2.
 
-**vs REST/HTTP:** gRPC is faster (binary, HTTP/2), supports streaming, generates type-safe code; REST is simpler, human-readable, and more widely supported. gRPC is preferred for internal microservice-to-microservice communication; REST for public APIs.
+**vs REST/HTTP:** gRPC is faster (binary, HTTP/2), supports streaming, generates type-safe code; REST is simpler, human-readable, more widely supported. Use gRPC for internal microservice-to-microservice calls; REST for public APIs.
 
 ---
 **Marking scheme (5–6 marks):** what gRPC is = **1**, HTTP/2 + protobuf = **2**, four call models = **1**, proto example = **1**, vs REST = **1**.
@@ -1591,31 +1626,32 @@ loop {
 ---
 
 ### Q46 🟡★ TLS/SSL + cryptography concepts. (short note — asked)
-**TLS (Transport Layer Security)**, formerly SSL, provides **encryption + authentication + integrity** for data in transit between two endpoints (e.g. client ↔ web server). It sits between the application and TCP.
 
-**Three pillars:**
+**Plain meaning:** **TLS (Transport Layer Security)**, formerly SSL, is the "secure envelope" wrapped around normal socket data. It does **three jobs** — keep data secret (**encryption**), prove who you're talking to (**authentication**), and detect tampering (**integrity**). It sits between your application and TCP.
+
+**The three pillars (learn each):**
 
 1. **Encryption** — makes data unreadable to eavesdroppers:
-   - **Symmetric encryption** (AES, ChaCha20): same key encrypts and decrypts. Fast — used for actual data transfer.
-   - **Asymmetric encryption** (RSA, ECC): public key encrypts, private key decrypts (or vice versa). Slow — used **only** to exchange the symmetric key during the handshake.
+   - **Symmetric encryption** (AES, ChaCha20): same key encrypts and decrypts. **Fast** — used for the actual data after the handshake.
+   - **Asymmetric encryption** (RSA, ECC): a public+private key pair. **Slow** — used *only* to safely exchange the symmetric key during the handshake.
 
 2. **Authentication** (certificates):
    - The server proves its identity by presenting a **digital certificate** signed by a trusted **Certificate Authority (CA)**.
-   - The client verifies the CA's signature using a built-in CA certificate store.
-   - Optionally, the client also presents a certificate (mutual TLS) for server-side authentication.
+   - The client verifies the CA's signature using its built-in CA certificate store.
+   - Optionally the client also presents a certificate (mutual TLS) so the server can verify the client too.
 
 3. **Integrity** (hashing / HMAC):
-   - **Hash functions** (SHA-256) produce a fixed-size digest from input — used for integrity checks.
-   - **HMAC** (Hash-based Message Authentication Code) = hash + secret key — ensures data hasn't been tampered with and proves it came from the expected party.
+   - **Hash functions** (SHA-256) turn data into a fixed-size digest — used for integrity checks.
+   - **HMAC** (Hash-based Message Authentication Code) = hash + secret key — proves data wasn't tampered with *and* that it came from the expected party.
 
-**TLS Handshake (simplified):**
+**TLS handshake (simplified):**
 1. Client → Server: "ClientHello" (supported cipher suites, TLS version).
 2. Server → Client: "ServerHello" (chosen cipher suite) + **server certificate**.
-3. Client verifies certificate against its CA store.
-4. Client and server agree on a **session key** (via key exchange — ECDHE for forward secrecy).
-5. Both sides switch to **symmetric encryption** using the session key — all subsequent data is encrypted.
+3. Client verifies the certificate against its CA store.
+4. Both agree on a **session key** (via key exchange — ECDHE for forward secrecy).
+5. Both switch to **symmetric encryption** using that session key — all subsequent data is encrypted.
 
-**Forward secrecy:** modern TLS uses **Ephemeral Diffie-Hellman (DHE/ECDHE)** — the session key is freshly generated for each connection and **never stored on disk**, so even if the server's private key is later compromised, past sessions cannot be decrypted.
+**Forward secrecy:** modern TLS uses **Ephemeral Diffie-Hellman (DHE/ECDHE)** — the session key is freshly generated per connection and **never stored on disk**, so even if the server's private key is later compromised, past sessions can't be decrypted.
 
 **OpenSSL example:**
 ```c
@@ -1634,34 +1670,33 @@ SSL_shutdown(ssl); SSL_free(ssl); SSL_CTX_free(ctx);
 ---
 
 ### Q47 🟡★ What is SDN? Key advantages. (asked: NCIT Q6b — 8 marks)
-**SDN (Software-Defined Networking)** is a network architecture that **separates the control plane (brain) from the data plane (muscle)** and centralises network management in software.
+
+**Plain meaning:** in a normal network, every switch/router is a **self-contained box** that both *thinks* (decides where packets go) and *does* (moves the packets). **SDN (Software-Defined Networking)** **separates the brain from the muscle**: the *thinking* moves into a central **software controller**, and the switches become simple "forwarding machines" that just follow its instructions. The network is then programmed like software, not configured switch-by-switch.
 
 **Traditional networking vs SDN:**
-In traditional networks, each switch/router has its own control plane (routing protocols, forwarding decisions) — they are autonomous and decentralised. Changing the network requires configuring each device individually.
-
-In SDN, the control plane is **extracted** from the switches and placed in a **centralised SDN controller** — the "brain" of the network. The switches become simple "forwarding machines" that just follow rules installed by the controller.
+- Traditional: each switch has its own control plane (routing logic). Decentralised, configured individually, one by one.
+- SDN: the control plane is **extracted** from the switches and put into a **centralised SDN controller** — the "brain". The switches become simple forwarding devices that obey **flow rules** installed by the controller.
 
 **The three layers:**
-
 | Layer | What it does | Example |
 |---|---|---|
-| **Application layer** | Network applications and policies (firewall, load balancing, routing) | Custom Python app, network management UI |
+| **Application layer** | Network apps and policies (firewall, load balancing, routing) | Custom Python app, network management UI |
 | **Control layer** | Centralised **SDN controller** — makes all routing/policy decisions | OpenDaylight, ONOS, Floodlight |
 | **Data/Infrastructure layer** | Switches just **forward packets** according to installed **flow rules** | OpenFlow switches |
 
-**OpenFlow protocol** = the standard protocol by which the SDN controller communicates with switches:
-- Controller installs **flow rules** (match fields + actions) into the switch's **flow table**.
+**OpenFlow protocol** = the standard way the SDN controller talks to the switches:
+- Controller installs **flow rules** (match fields + actions) into each switch's **flow table**.
 - When a packet arrives, the switch checks its flow table:
-  - **Match found →** perform the action (forward, drop, modify).
-  - **No match →** send the packet to the controller (packet-in).
+  - **Match found →** do the action (forward, drop, modify).
+  - **No match →** send the packet up to the controller (packet-in).
 - Controller computes the path, installs flow rules on all relevant switches (packet-out).
 
-**Key advantages of SDN:**
-1. **Centralised control** — one controller has the entire network view; makes globally optimal decisions (unlike traditional distributed protocols that converge slowly).
-2. **Programmability** — the network is controlled by software, not manual CLI configuration. Enables automation, rapid deployment of new services.
-3. **Agility / rapid innovation** — new policies can be deployed in seconds (write a Python script → push rules via controller) instead of reconfiguring hundreds of devices.
+**Key advantages of SDN (the "why" to write):**
+1. **Centralised control** — one controller sees the whole network and makes globally optimal decisions (unlike distributed protocols that converge slowly).
+2. **Programmability** — the network is controlled by software, not manual CLI config. Enables automation and rapid deployment.
+3. **Agility / rapid innovation** — new policies deploy in seconds (write a script → push rules via the controller) instead of reconfiguring hundreds of devices.
 4. **Better resource utilisation** — the controller sees all traffic patterns and can optimise paths globally.
-5. **Vendor independence** — switches just speak OpenFlow; the controller is vendor-agnostic.
+5. **Vendor independence** — switches just speak OpenFlow; the controller doesn't care whose hardware it is.
 
 ---
 **Marking scheme (8 marks):** what SDN is = **1**, three layers table = **3**, OpenFlow explanation = **2**, advantages list = **2**.
@@ -1670,25 +1705,27 @@ In SDN, the control plane is **extracted** from the switches and placed in a **c
 
 ### Q48 🟡★ OpenFlow, P4, Frenetic. (short notes — asked: Gandaki "P4 and frenetic programming")
 
-**OpenFlow — controller ↔ switch communication protocol:**
-- **Standard protocol** by which the SDN controller programs the **flow tables** of network switches.
-- The controller installs rules: "if a packet matches [src IP, dst IP, port, ...], then [forward to port X / drop / modify / send to controller]."
-- Switches are simple: they look up packets in their flow table and follow the rules. No routing logic in the switch.
+**Plain meaning:** OpenFlow, P4, and Frenetic are three different *levels* of programming an SDN network: **OpenFlow** writes the switch's decision table, **P4** rewrites what a switch can do to a packet, and **Frenetic** writes the controller's policies (and turns them into OpenFlow for you).
+
+**OpenFlow — the controller ↔ switch protocol:**
+- The **standard protocol** by which the SDN controller programs the **flow tables** of switches.
+- The controller installs rules: "if a packet matches [src IP, dst IP, port...], then [forward to port X / drop / modify / send to controller]."
+- Switches are simple: they look up packets in their flow table and follow the rules — no routing logic in the switch.
 - Used in data centres, research networks, and SDN deployments.
 
 **P4 — programming the data plane:**
-- **P4 (Programming Protocol-independent Packet Processors)** is a high-level **DSL (domain-specific language)** that lets you program **what the switch does** — not just forwarding, but custom packet parsing, processing, and modification.
-- OpenFlow is limited to a fixed set of match fields (IP, MAC, port). P4 lets you define your own headers and processing logic (e.g. process custom protocols, implement new load-balancing schemes).
-- You write a P4 program → compile it → deploy to a P4-programmable switch → the switch processes packets according to your custom logic.
-- Key use: **custom data-plane logic** — network researchers and operators can implement protocols that OpenFlow cannot express.
+- **P4 (Programming Protocol-independent Packet Processors)** is a high-level **domain-specific language (DSL)** for programming **what the switch does** — not just forwarding, but custom packet parsing, processing, and modification.
+- OpenFlow can only match a fixed set of fields (IP, MAC, port). P4 lets you define your **own headers and processing logic** (process custom protocols, implement new load-balancing schemes).
+- You write a P4 program → compile it → deploy to a P4-programmable switch → the switch processes packets per your custom logic.
+- Key use: **custom data-plane logic** that OpenFlow cannot express.
 
 **Frenetic — programming the controller:**
-- **Frenetic** is a high-level **DSL** for programming the SDN controller — you write network policies in Frenetic (a functional language), and the Frenetic compiler translates them into **OpenFlow rules** and pushes them to switches.
-- Advantage: the programmer writes high-level policies (e.g. "forward HTTP to the load balancer, drop all other traffic") without manually computing which OpenFlow rules to install on which switch.
-- Frenetic handles the hard parts: composing multiple policies, computing the flow tables across multiple switches, and handling packet-in events.
-- Part of the broader **"network programming languages"** research area (along with Pyretic, NetKAT, etc.).
+- **Frenetic** is a high-level **DSL for programming the SDN controller**. You write network policies in Frenetic (a functional language), and the compiler turns them into **OpenFlow rules** for the switches.
+- Advantage: you write high-level policies ("forward HTTP to the load balancer, drop all other traffic") without manually computing which OpenFlow rules go on which switch.
+- Frenetic handles the hard parts: composing policies, computing flow tables across switches, handling packet-in events.
+- Part of the broader **"network programming languages"** research area (with Pyretic, NetKAT, etc.).
 
-**Summary:**
+**Summary table:**
 | Tool | Programs what? | Level |
 |---|---|---|
 | **OpenFlow** | Switch flow tables (match + action) | Low-level rules |
@@ -1701,12 +1738,13 @@ In SDN, the control plane is **extracted** from the switches and placed in a **c
 ---
 
 ### Q49 🟡★ WebSockets short note. (asked: Gandaki short note)
-**WebSocket** is a **full-duplex, persistent messaging protocol** over a single TCP connection, designed for low-latency, low-overhead two-way communication between client and server in web applications.
+
+**Plain meaning:** **WebSocket** is a protocol for **persistent, two-way (full-duplex) communication** over a single TCP connection — the "hotline" that lets both a web page and its server talk freely at any moment, unlike HTTP's one-question-one-answer style.
 
 **Key characteristics:**
-- **Full-duplex:** both client and server can send messages at any time simultaneously.
-- **Persistent:** the TCP connection stays open for the session duration — no repeated connect/disconnect.
-- **Low overhead:** WebSocket frames have a 2–14 byte header (vs hundreds of bytes for HTTP headers per request).
+- **Full-duplex:** both client and server can send messages at any time, even simultaneously.
+- **Persistent:** one TCP connection stays open for the session — no repeated connect/disconnect.
+- **Low overhead:** frame headers are 2–14 bytes (vs hundreds of bytes of HTTP headers per request).
 - **URL scheme:** `ws://` (unencrypted) or `wss://` (encrypted, over TLS).
 - **Standardised:** RFC 6455, supported by all modern browsers.
 
@@ -1726,9 +1764,9 @@ After the `101` response, the connection is upgraded — both sides exchange fra
 
 **WebSocket frames:** FIN (1 bit) + opcode (4 bits: 0x1 text, 0x2 binary, 0x8 close, 0x9 ping, 0xA pong) + MASK bit + payload length + masking key (4 bytes, client→server) + payload.
 
-**Use cases:** chat applications, multiplayer games, live dashboards, stock tickers, IoT real-time push, collaborative editing (Google Docs), live sports scores.
+**Use cases:** chat apps, multiplayer games, live dashboards, stock tickers, IoT real-time push, collaborative editing (Google Docs), live sports scores.
 
-**vs HTTP polling:** WebSocket is far more efficient — no repeated HTTP headers, no polling overhead, true real-time updates pushed from server.
+**vs HTTP polling:** WebSocket is far more efficient — no repeated HTTP headers, no polling overhead, true real-time updates pushed from the server.
 
 ---
 **Marking scheme (5–6 marks):** what it is = **1**, key characteristics = **2**, handshake = **1**, frames = **1**, use cases = **1**.
@@ -1736,7 +1774,8 @@ After the `101` response, the connection is upgraded — both sides exchange fra
 ---
 
 ### Q50 🟢 Daemonizing techniques in Unix.
-A **daemon** is a long-running background process with no controlling terminal. To daemonize a process in Unix, follow these standard steps:
+
+**Plain meaning:** to turn a normal program into a **daemon** (a background process with no terminal), you run a fixed set of steps that *detach* it: give it its own session, move it somewhere safe, and cut off its input/output.
 
 ```c
 if (fork() > 0) exit(0);     // 1. parent exits, child continues
@@ -1750,15 +1789,15 @@ dup2(0, 1);  // stdout → /dev/null
 dup2(0, 2);  // stderr → /dev/null
 ```
 
-**Step-by-step explanation:**
-1. **`fork()`** — create a child; parent exits so the shell prompt returns immediately.
+**Step-by-step explanation (understand each):**
+1. **`fork()`** — create a child; the parent exits so your shell prompt returns immediately.
 2. **`setsid()`** — create a **new session** (new process group, no controlling terminal). The child is now a session leader.
-3. **Second `fork()` (double-fork)** — after the first `setsid()`, the process is a session leader. A session leader *could* re-acquire a controlling terminal if it opens a terminal device. By forking again and having the parent exit, the grandchild is **not** a session leader — it can **never** acquire a controlling terminal.
+3. **Second `fork()` (double-fork)** — after `setsid()` the process is a session leader, and a session leader *could* re-acquire a controlling terminal if it opens a terminal device. By forking again (and the parent exiting), the grandchild is **not** a session leader — it can **never** get a controlling terminal.
 4. **`chdir("/")`** — avoid holding a busy/mounted filesystem as the current directory (could prevent unmounting).
-5. **`umask(0)`** — clear the file creation mask so the daemon can create files with full intended permissions.
-6. **Redirect stdin/stdout/stderr to `/dev/null`** — since there is no controlling terminal, reading from stdin would block/error, and writing to stdout/stderr would fail. Redirecting to `/dev/null` makes them harmless (output is discarded, reads return EOF).
+5. **`umask(0)`** — clear the file-creation mask so the daemon can create files with full intended permissions.
+6. **Redirect stdin/stdout/stderr to `/dev/null`** — with no terminal, reading stdin would fail and writing to stdout/stderr would be meaningless. Sending them to `/dev/null` makes both harmless (output discarded, reads return EOF).
 
-**Result:** a fully detached background process, with no controlling terminal, no parent (orphaned and adopted by `init`/`systemd`), writing only to logs (use `syslog`).
+**Result:** a fully detached background process — no controlling terminal, no parent (orphaned and adopted by `init`/`systemd`), writing only to logs (via `syslog`).
 
 **Optional extras:** change the process name (`prctl(PR_SET_NAME, "mydaemon")`), write a PID file (`/var/run/mydaemon.pid`), set up signal handlers for graceful shutdown.
 
@@ -1766,7 +1805,6 @@ dup2(0, 2);  // stderr → /dev/null
 **Marking scheme (5 marks):** code/6 steps = **3** (0.5 each), double-fork explanation = **1**, redirect to /dev/null = **1**.
 
 ---
-
 ## Full 6-Part 8-Mark Model Answers
 
 > Every answer below follows the structure **①Definition → ②Diagram → ③Full concept → ④Example/code → ⑤Common errors/limits → ⑥Conclusion**. Practise writing each one by hand with a pencil. The diagrams are worth the most — an examiner who sees a clear diagram knows you understand immediately.
